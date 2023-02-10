@@ -3,7 +3,8 @@
 
 include(FetchContent)
 
-set(BOOST_MP11_GIT_REPO https://github.com/boostorg/mp11.git)
+# set(BOOST_MP11_GIT_REPO https://github.com/boostorg/mp11.git)
+set(BOOST_MP11_GIT_REPO ssh://git@gitlab.gxnzx12729.ict:2222/wangziyang/mp11.git)
 # Author: pdimov
 # Date: Feb 16, 2022
 # Comment:

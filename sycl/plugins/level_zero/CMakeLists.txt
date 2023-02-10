@@ -27,7 +27,8 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
   #      cmake files simplification
   include(ExternalProject)
   ExternalProject_Add(level-zero-loader
-    GIT_REPOSITORY    https://github.com/oneapi-src/level-zero.git
+    # GIT_REPOSITORY    https://github.com/oneapi-src/level-zero.git
+    GIT_REPOSITORY    ssh://git@gitlab.gxnzx12729.ict:2222/wangziyang/level-zero.git
     GIT_TAG           ${LEVEL_ZERO_LOADER_SOURCE_VERSION}
     UPDATE_DISCONNECTED ${SYCL_EP_LEVEL_ZERO_LOADER_SKIP_AUTO_UPDATE}
     SOURCE_DIR        ${LEVEL_ZERO_LOADER_SOURCE_DIR}
