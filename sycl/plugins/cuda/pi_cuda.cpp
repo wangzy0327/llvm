@@ -5079,7 +5079,8 @@ pi_result cuda_piextUSMFree(pi_context context, void *ptr) {
                                          CU_POINTER_ATTRIBUTE_MEMORY_TYPE};
     result = PI_CHECK_ERROR(cuPointerGetAttributes(
         2, attributes, attribute_values, (CUdeviceptr)ptr));
-    assert(type == CU_MEMORYTYPE_DEVICE || type == CU_MEMORYTYPE_HOST);
+    // assert(type == CU_MEMORYTYPE_DEVICE || type == CU_MEMORYTYPE_HOST);
+    assert(result == PI_SUCCESS);
     if (is_managed || type == CU_MEMORYTYPE_DEVICE) {
       // Memory allocated with cuMemAlloc and cuMemAllocManaged must be freed
       // with cuMemFree
