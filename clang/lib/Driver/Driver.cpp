@@ -167,6 +167,24 @@ getHIPOffloadTargetTriple(const Driver &D, const ArgList &Args) {
   return std::nullopt;
 }
 
+static std::optional<llvm::Triple>
+getCNOffloadTargetTriple(const Driver &D, const ArgList &Args) {
+  if (!Args.hasArg(options::OPT_offload_EQ)) {
+    return llvm::Triple("mlisa-cambricon-bang"); // Default CN triple.
+  }
+  auto TT = getOffloadTargetTriple(D, Args);
+  if (!TT)
+    return std::nullopt;
+  if (TT->getArch() == llvm::Triple::mlisa &&
+      TT->getVendor() == llvm::Triple::Cambricon &&
+      TT->getOS() == llvm::Triple::BANG)
+    return TT;
+  if (TT->getArch() == llvm::Triple::spirv64)
+    return TT;
+  D.Diag(diag::err_drv_invalid_or_unsupported_offload_target) << TT->str();
+  return std::nullopt;
+}
+
 // static
 std::string Driver::GetResourcesPath(StringRef BinaryPath,
                                      StringRef CustomResourceDir) {
@@ -788,6 +806,9 @@ static bool isValidSYCLTriple(llvm::Triple T) {
   // AMDGCN is valid for SYCL
   if (T.isAMDGCN())
     return true;
+  //MLISA is valid for SYCL
+  if (T.isMLISA())  
+    return true;
 
   // Check for invalid SYCL device triple values.
   // Non-SPIR arch.
@@ -849,7 +870,11 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
                      return types::isHIP(I.first);
                    }) ||
       C.getInputArgs().hasArg(options::OPT_hip_link);
-  if (IsCuda && IsHIP) {
+  bool IsCN = 
+      llvm::any_of(Inputs, [](std::pair<types::ID, const llvm::opt::Arg *> &I) {
+        return types::isCN(I.first);
+      });      
+  if (IsCuda && IsHIP && IsCN) {
     Diag(clang::diag::err_drv_mix_cuda_hip);
     return;
   }
@@ -883,6 +908,22 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
                                                 *HostTC, OFK);
     assert(HIPTC && "Could not create offloading device tool chain.");
     C.addOffloadDeviceToolChain(HIPTC, OFK);
+  }else if(IsCN){
+    if (auto *OMPTargetArg =
+            C.getInputArgs().getLastArg(options::OPT_fopenmp_targets_EQ)) {
+      Diag(clang::diag::err_drv_unsupported_opt_for_language_mode)
+          << OMPTargetArg->getSpelling() << "CN";
+      return;
+    }
+    const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
+    auto OFK = Action::OFK_CN;
+    auto CNTriple = getCNOffloadTargetTriple(*this, C.getInputArgs());
+    if (!CNTriple)
+      return;
+    auto *CNTC = &getOffloadingDeviceToolChain(C.getInputArgs(), *CNTriple,
+                                                *HostTC, OFK);
+    assert(CNTC && "Could not create offloading device tool chain.");
+    C.addOffloadDeviceToolChain(CNTC, OFK);
   }
 
   //
@@ -924,6 +965,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
                !IsHIP && !IsCuda) {
       const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
       auto AMDTriple = getHIPOffloadTargetTriple(*this, C.getInputArgs());
+      auto CNTriple = getCNOffloadTargetTriple(*this, C.getInputArgs());
       auto NVPTXTriple = getNVIDIAOffloadTargetTriple(*this, C.getInputArgs(),
                                                       HostTC->getTriple());
 
@@ -4437,6 +4479,250 @@ class OffloadingActionBuilder final {
     void appendLinkDependences(OffloadAction::DeviceDependences &DA) override {}
   };
 
+  /// \brief CN action builder. It injects device code in the host backend
+  /// action.
+  class CNActionBuilder final : public CudaActionBuilderBase {
+    /// The linker inputs obtained for each device arch.
+    SmallVector<ActionList, 8> DeviceLinkerInputs;
+    // The default bundling behavior depends on the type of output, therefore
+    // BundleOutput needs to be tri-value: None, true, or false.
+    // Bundle code objects except --no-gpu-output is specified for device
+    // only compilation. Bundle other type of output files only if
+    // --gpu-bundle-output is specified for device only compilation.
+    std::optional<bool> BundleOutput;
+
+  public:
+    CNActionBuilder(Compilation &C, DerivedArgList &Args,
+                     const Driver::InputList &Inputs,
+                     OffloadingActionBuilder &OAB)
+        : CudaActionBuilderBase(C, Args, Inputs, Action::OFK_CN, OAB) {
+      DefaultCudaArch = CudaArch::MTP_270;
+      if (Args.hasArg(options::OPT_gpu_bundle_output,
+                      options::OPT_no_gpu_bundle_output))
+        BundleOutput = Args.hasFlag(options::OPT_gpu_bundle_output,
+                                    options::OPT_no_gpu_bundle_output, true);
+    }
+
+    bool canUseBundlerUnbundler() const override { return true; }
+
+    StringRef getCanonicalOffloadArch(StringRef IdStr) override {
+      llvm::StringMap<bool> Features;
+      // getCNOffloadTargetTriple() is known to return valid value as it has
+      // been called successfully in the CreateOffloadingDeviceToolChains().
+      auto ArchStr = parseTargetID(
+          *getCNOffloadTargetTriple(C.getDriver(), C.getInputArgs()), IdStr,
+          &Features);
+      if (!ArchStr) {
+        C.getDriver().Diag(clang::diag::err_drv_bad_target_id) << IdStr;
+        C.setContainsError();
+        return StringRef();
+      }
+      auto CanId = getCanonicalTargetID(*ArchStr, Features);
+      return Args.MakeArgStringRef(CanId);
+    };
+
+    std::optional<std::pair<llvm::StringRef, llvm::StringRef>>
+    getConflictOffloadArchCombination(
+        const std::set<StringRef> &GpuArchs) override {
+      return getConflictTargetIDCombination(GpuArchs);
+    }
+
+    ActionBuilderReturnCode
+    getDeviceDependences(OffloadAction::DeviceDependences &DA,
+                         phases::ID CurPhase, phases::ID FinalPhase,
+                         PhasesTy &Phases) override {
+      if (!IsActive)
+        return ABRT_Inactive;
+
+      // amdgcn does not support linking of object files, therefore we skip
+      // backend and assemble phases to output LLVM IR. Except for generating
+      // non-relocatable device code, where we generate fat binary for device
+      // code and pass to host in Backend phase.
+      if (CudaDeviceActions.empty())
+        return ABRT_Success;
+
+      assert(((CurPhase == phases::Link && Relocatable) ||
+              CudaDeviceActions.size() == GpuArchList.size()) &&
+             "Expecting one action per GPU architecture.");
+      assert(!CompileHostOnly &&
+             "Not expecting CN actions in host-only compilation.");
+
+      if (!Relocatable && CurPhase == phases::Backend && !EmitLLVM &&
+          !EmitAsm) {
+        // If we are in backend phase, we attempt to generate the fat binary.
+        // We compile each arch to IR and use a link action to generate code
+        // object containing ISA. Then we use a special "link" action to create
+        // a fat binary containing all the code objects for different GPU's.
+        // The fat binary is then an input to the host action.
+        for (unsigned I = 0, E = GpuArchList.size(); I != E; ++I) {
+          if (C.getDriver().isUsingLTO(/*IsOffload=*/true)) {
+            // When LTO is enabled, skip the backend and assemble phases and
+            // use lld to link the bitcode.
+            ActionList AL;
+            AL.push_back(CudaDeviceActions[I]);
+            // Create a link action to link device IR with device library
+            // and generate ISA.
+            CudaDeviceActions[I] =
+                C.MakeAction<LinkJobAction>(AL, types::TY_Image);
+          } else {
+            // When LTO is not enabled, we follow the conventional
+            // compiler phases, including backend and assemble phases.
+            ActionList AL;
+            Action *BackendAction = nullptr;
+            if (ToolChains.front()->getTriple().isSPIRV()) {
+              // Emit LLVM bitcode for SPIR-V targets. SPIR-V device tool chain
+              // (HIPSPVToolChain) runs post-link LLVM IR passes.
+              types::ID Output = Args.hasArg(options::OPT_S)
+                                     ? types::TY_LLVM_IR
+                                     : types::TY_LLVM_BC;
+              BackendAction =
+                  C.MakeAction<BackendJobAction>(CudaDeviceActions[I], Output);
+            } else
+              BackendAction = C.getDriver().ConstructPhaseAction(
+                  C, Args, phases::Backend, CudaDeviceActions[I],
+                  AssociatedOffloadKind);
+            auto AssembleAction = C.getDriver().ConstructPhaseAction(
+                C, Args, phases::Assemble, BackendAction,
+                AssociatedOffloadKind);
+            AL.push_back(AssembleAction);
+            // Create a link action to link device IR with device library
+            // and generate ISA.
+            CudaDeviceActions[I] =
+                C.MakeAction<LinkJobAction>(AL, types::TY_Image);
+          }
+
+          // OffloadingActionBuilder propagates device arch until an offload
+          // action. Since the next action for creating fatbin does
+          // not have device arch, whereas the above link action and its input
+          // have device arch, an offload action is needed to stop the null
+          // device arch of the next action being propagated to the above link
+          // action.
+          OffloadAction::DeviceDependences DDep;
+          DDep.add(*CudaDeviceActions[I], *ToolChains.front(), GpuArchList[I],
+                   AssociatedOffloadKind);
+          CudaDeviceActions[I] = C.MakeAction<OffloadAction>(
+              DDep, CudaDeviceActions[I]->getType());
+        }
+
+        if (!CompileDeviceOnly || !BundleOutput || *BundleOutput) {
+          // Create CN fat binary with a special "link" action.
+          CudaFatBinary = C.MakeAction<LinkJobAction>(CudaDeviceActions,
+                                                      types::TY_CN_FATBIN);
+
+          if (!CompileDeviceOnly) {
+            DA.add(*CudaFatBinary, *ToolChains.front(), /*BoundArch=*/nullptr,
+                   AssociatedOffloadKind);
+            // Clear the fat binary, it is already a dependence to an host
+            // action.
+            CudaFatBinary = nullptr;
+          }
+
+          // Remove the CUDA actions as they are already connected to an host
+          // action or fat binary.
+          CudaDeviceActions.clear();
+        }
+
+        return CompileDeviceOnly ? ABRT_Ignore_Host : ABRT_Success;
+      } else if (CurPhase == phases::Link) {
+        // Save CudaDeviceActions to DeviceLinkerInputs for each GPU subarch.
+        // This happens to each device action originated from each input file.
+        // Later on, device actions in DeviceLinkerInputs are used to create
+        // device link actions in appendLinkDependences and the created device
+        // link actions are passed to the offload action as device dependence.
+        DeviceLinkerInputs.resize(CudaDeviceActions.size());
+        auto LI = DeviceLinkerInputs.begin();
+        for (auto *A : CudaDeviceActions) {
+          LI->push_back(A);
+          ++LI;
+        }
+
+        // We will pass the device action as a host dependence, so we don't
+        // need to do anything else with them.
+        CudaDeviceActions.clear();
+        return CompileDeviceOnly ? ABRT_Ignore_Host : ABRT_Success;
+      }
+
+      // By default, we produce an action for each device arch.
+      for (Action *&A : CudaDeviceActions)
+        A = C.getDriver().ConstructPhaseAction(C, Args, CurPhase, A,
+                                               AssociatedOffloadKind);
+
+      if (CompileDeviceOnly && CurPhase == FinalPhase && BundleOutput &&
+          BundleOutput.value()) {
+        for (unsigned I = 0, E = GpuArchList.size(); I != E; ++I) {
+          OffloadAction::DeviceDependences DDep;
+          DDep.add(*CudaDeviceActions[I], *ToolChains.front(), GpuArchList[I],
+                   AssociatedOffloadKind);
+          CudaDeviceActions[I] = C.MakeAction<OffloadAction>(
+              DDep, CudaDeviceActions[I]->getType());
+        }
+        CudaFatBinary =
+            C.MakeAction<OffloadBundlingJobAction>(CudaDeviceActions);
+        CudaDeviceActions.clear();
+      }
+
+      return (CompileDeviceOnly && CurPhase == FinalPhase) ? ABRT_Ignore_Host
+                                                           : ABRT_Success;
+    }
+
+    void appendLinkDeviceActions(ActionList &AL) override {
+      if (DeviceLinkerInputs.size() == 0)
+        return;
+
+      assert(DeviceLinkerInputs.size() == GpuArchList.size() &&
+             "Linker inputs and GPU arch list sizes do not match.");
+
+      ActionList Actions;
+      unsigned I = 0;
+      // Append a new link action for each device.
+      // Each entry in DeviceLinkerInputs corresponds to a GPU arch.
+      for (auto &LI : DeviceLinkerInputs) {
+
+        types::ID Output = Args.hasArg(options::OPT_emit_llvm)
+                                   ? types::TY_LLVM_BC
+                                   : types::TY_Image;
+
+        auto *DeviceLinkAction = C.MakeAction<LinkJobAction>(LI, Output);
+        // Linking all inputs for the current GPU arch.
+        // LI contains all the inputs for the linker.
+        OffloadAction::DeviceDependences DeviceLinkDeps;
+        DeviceLinkDeps.add(*DeviceLinkAction, *ToolChains[0],
+            GpuArchList[I], AssociatedOffloadKind);
+        Actions.push_back(C.MakeAction<OffloadAction>(
+            DeviceLinkDeps, DeviceLinkAction->getType()));
+        ++I;
+      }
+      DeviceLinkerInputs.clear();
+
+      // If emitting LLVM, do not generate final host/device compilation action
+      if (Args.hasArg(options::OPT_emit_llvm)) {
+          AL.append(Actions);
+          return;
+      }
+
+      // Create a host object from all the device images by embedding them
+      // in a fat binary for mixed host-device compilation. For device-only
+      // compilation, creates a fat binary.
+      OffloadAction::DeviceDependences DDeps;
+      if (!CompileDeviceOnly || !BundleOutput || *BundleOutput) {
+        auto *TopDeviceLinkAction = C.MakeAction<LinkJobAction>(
+            Actions,
+            CompileDeviceOnly ? types::TY_CN_FATBIN : types::TY_Object);
+        DDeps.add(*TopDeviceLinkAction, *ToolChains[0], nullptr,
+                  AssociatedOffloadKind);
+        // Offload the host object to the host linker.
+        AL.push_back(
+            C.MakeAction<OffloadAction>(DDeps, TopDeviceLinkAction->getType()));
+      } else {
+        AL.append(Actions);
+      }
+    }
+
+    Action* appendLinkHostActions(ActionList &AL) override { return AL.back(); }
+
+    void appendLinkDependences(OffloadAction::DeviceDependences &DA) override {}
+  };
+
   /// OpenMP action builder. The host bitcode is passed to the device frontend
   /// and all the device linked images are passed to the host link phase.
   class OpenMPActionBuilder final : public DeviceActionBuilder {
@@ -4720,6 +5006,22 @@ class OffloadingActionBuilder final {
       JobAction *HIPFatBinary =
           C.MakeAction<LinkJobAction>(HIPActions, types::TY_HIP_FATBIN);
       return HIPFatBinary;
+    }
+
+    JobAction *finalizeMLISADependences(Action *Input,
+                                         const llvm::Triple &TT) {
+      auto *BA = C.getDriver().ConstructPhaseAction(
+          C, Args, phases::Backend, Input, AssociatedOffloadKind);
+
+      auto *AA = C.getDriver().ConstructPhaseAction(C, Args, phases::Assemble,
+                                                    BA, AssociatedOffloadKind);
+
+      ActionList AL = {AA};
+      Action *LinkAction = C.MakeAction<LinkJobAction>(AL, types::TY_Image);
+      ActionList CNActions = {LinkAction};
+      JobAction *CNFatBinary =
+          C.MakeAction<LinkJobAction>(CNActions, types::TY_CN_FATBIN);
+      return CNFatBinary;
     }
 
     Action *ExternalCudaAction = nullptr;
@@ -5378,6 +5680,7 @@ class OffloadingActionBuilder final {
         auto TT = TC->getTriple();
         auto isNVPTX = TT.isNVPTX();
         auto isAMDGCN = TT.isAMDGCN();
+        auto isMLISA = TT.isMLISA();
         auto isSPIR = TT.isSPIR();
         bool isSpirvAOT = TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga ||
                           TT.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
@@ -5416,7 +5719,7 @@ class OffloadingActionBuilder final {
           } else if (!types::isFPGA(Input->getType())) {
             // No need for any conversion if we are coming in from the
             // clang-offload-deps or regular compilation path.
-            if (isNVPTX || isAMDGCN || ContainsOffloadDepsAction(Input) ||
+            if (isNVPTX || isAMDGCN || isMLISA || ContainsOffloadDepsAction(Input) ||
                 ContainsCompileOrAssembleAction(Input)) {
               LinkObjects.push_back(Input);
               continue;
@@ -5639,12 +5942,13 @@ class OffloadingActionBuilder final {
 
           Action *ExtractIRFilesAction = createExtractIRFilesAction();
 
-          if (isNVPTX || isAMDGCN) {
+          if (isNVPTX || isAMDGCN || isMLISA) {
             JobAction *FinAction =
                 isNVPTX ? finalizeNVPTXDependences(ExtractIRFilesAction,
                                                    TC->getTriple())
-                        : finalizeAMDGCNDependences(ExtractIRFilesAction,
-                                                    TC->getTriple());
+                        : (isAMDGCN ? finalizeAMDGCNDependences(ExtractIRFilesAction,
+                                                    TC->getTriple())
+                                                    : finalizeMLISADependences(ExtractIRFilesAction,TC->getTriple()));
             auto *ForEachWrapping = C.MakeAction<ForEachWrappingAction>(
                 cast<JobAction>(ExtractIRFilesAction), FinAction);
 
@@ -5831,6 +6135,17 @@ class OffloadingActionBuilder final {
             llvm::StringMap<bool> Features;
             auto Arch = parseTargetID(
                 *getHIPOffloadTargetTriple(C.getDriver(), C.getInputArgs()),
+                ArchStr, &Features);
+            if (!Arch) {
+              C.getDriver().Diag(clang::diag::err_drv_bad_target_id) << ArchStr;
+              continue;
+            }
+            auto CanId = getCanonicalTargetID(Arch.value(), Features);
+            ArchStr = Args.MakeArgStringRef(CanId);
+          }else if(TargetBE->isMLISA()){
+            llvm::StringMap<bool> Features;
+            auto Arch = parseTargetID(
+                *getCNOffloadTargetTriple(C.getDriver(), C.getInputArgs()),
                 ArchStr, &Features);
             if (!Arch) {
               C.getDriver().Diag(clang::diag::err_drv_bad_target_id) << ArchStr;
@@ -6189,6 +6504,9 @@ public:
 
     // Create a specialized builder for HIP.
     SpecializedBuilders.push_back(new HIPActionBuilder(C, Args, Inputs, *this));
+
+    // Create a specialized builder for CN.
+    SpecializedBuilders.push_back(new CNActionBuilder(C, Args, Inputs, *this));
 
     // Create a specialized builder for OpenMP.
     SpecializedBuilders.push_back(
@@ -7211,7 +7529,11 @@ static StringRef getCanonicalArchString(Compilation &C,
     C.getDriver().Diag(clang::diag::err_drv_offload_bad_gpu_arch)
         << "HIP" << ArchStr;
     return StringRef();
-  }
+  }else if(Triple.isMLISA() &&
+             (Arch == CudaArch::UNKNOWN || !IsMLISAArch(Arch))) {
+    C.getDriver().Diag(clang::diag::err_drv_offload_bad_gpu_arch)
+        << "CN" << ArchStr;
+    return StringRef();
 
   if (IsNVIDIAGpuArch(Arch))
     return Args.MakeArgStringRef(CudaArchToString(Arch));
@@ -7222,6 +7544,20 @@ static StringRef getCanonicalArchString(Compilation &C,
     if (!HIPTriple)
       return StringRef();
     auto Arch = parseTargetID(*HIPTriple, ArchStr, &Features);
+    if (!Arch) {
+      C.getDriver().Diag(clang::diag::err_drv_bad_target_id) << ArchStr;
+      C.setContainsError();
+      return StringRef();
+    }
+    return Args.MakeArgStringRef(getCanonicalTargetID(*Arch, Features));
+  }
+
+  if (IsMLISAArch(Arch)) {
+    llvm::StringMap<bool> Features;
+    auto CNTriple = getCNOffloadTargetTriple(C.getDriver(), C.getInputArgs());
+    if (!CNTriple)
+      return StringRef();
+    auto Arch = parseTargetID(*CNTriple, ArchStr, &Features);
     if (!Arch) {
       C.getDriver().Diag(clang::diag::err_drv_bad_target_id) << ArchStr;
       C.setContainsError();

@@ -106,6 +106,7 @@ public:
     renderscript64, // 64-bit RenderScript
     fpga,           // Intel FPGA
     ve,             // NEC SX-Aurora Vector Engine
+    mlisa,          // Cambricon ISA
     LastArchType = ve
   };
   enum SubArchType {
@@ -185,6 +186,7 @@ public:
     Mesa,
     SUSE,
     OpenEmbedded,
+    Cambricon,
     LastVendorType = OpenEmbedded
   };
   enum OSType {
@@ -228,6 +230,7 @@ public:
     WASI,       // Experimental WebAssembly OS
     Emscripten,
     ShaderModel, // DirectX ShaderModel
+    BANG,        // Cambricon BANG
     LastOSType = ShaderModel
   };
   enum EnvironmentType {
@@ -770,6 +773,9 @@ public:
 
   /// Tests whether the target is AMDGCN
   bool isAMDGCN() const { return getArch() == Triple::amdgcn; }
+
+  /// Tests whether the target is MLISA
+  bool isMLISA() const {return getArch() == Triple::mlisa;}
 
   bool isAMDGPU() const {
     return getArch() == Triple::r600 || getArch() == Triple::amdgcn;
