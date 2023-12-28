@@ -77,6 +77,7 @@ math/fma.cl
 ../../generic/lib/math/rootn.cl
 ../../generic/lib/math/sin.cl
 ../../generic/lib/math/sincos.cl
+../../generic/lib/math/sincospi.cl
 ../../generic/lib/math/sincos_helpers.cl
 ../../generic/lib/math/sinh.cl
 ../../generic/lib/math/sinpi.cl

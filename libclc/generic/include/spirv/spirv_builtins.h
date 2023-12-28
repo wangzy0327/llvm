@@ -18683,6 +18683,7 @@ _CLC_OVERLOAD _CLC_DECL __clc_fp32_t __spirv_ocl_sincos(__clc_fp32_t,
                                                         __clc_fp32_t *);
 _CLC_OVERLOAD _CLC_DECL __clc_fp32_t __spirv_ocl_sincos(__clc_fp32_t,
                                                         __clc_fp32_t __local *);
+
 _CLC_OVERLOAD _CLC_DECL __clc_fp32_t
 __spirv_ocl_sincos(__clc_fp32_t, __clc_fp32_t __global *);
 _CLC_OVERLOAD _CLC_DECL __clc_vec2_fp32_t
@@ -18793,6 +18794,10 @@ __spirv_ocl_sincos(__clc_vec16_fp16_t, __clc_vec16_fp16_t __local *);
 _CLC_OVERLOAD _CLC_DECL __clc_vec16_fp16_t
 __spirv_ocl_sincos(__clc_vec16_fp16_t, __clc_vec16_fp16_t __global *);
 #endif
+
+_CLC_OVERLOAD _CLC_DECL void __spirv_ocl_sincospi(__clc_fp32_t,
+                                                        __clc_fp32_t *,__clc_fp32_t *);
+
 
 _CLC_OVERLOAD
 _CLC_DECL _CLC_CONSTFN __clc_fp32_t __spirv_ocl_sinh(__clc_fp32_t);

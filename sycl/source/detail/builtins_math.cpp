@@ -85,6 +85,11 @@ template <typename T> inline T __sincos(T x, T *cosval) {
 
 template <typename T> inline T __sinpi(T x) { return std::sin(M_PI * x); }
 
+template <typename T> inline T __sincospi(T x, T *cosval) {
+  (*cosval) = std::cos(M_PI * x);
+  return std::sin(M_PI * x);
+}
+
 template <typename T> inline T __tanpi(T x) { return std::tan(M_PI * x); }
 
 } // namespace

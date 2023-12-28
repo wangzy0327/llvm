@@ -227,6 +227,9 @@ enum Entrypoints {
     UAbs_diff = 202,
     UMul_hi = 203,
     UMad_hi = 204,
+
+    //other self extension
+    Sincospi = 205,
 };
 
 } // end namespace OpenCL20

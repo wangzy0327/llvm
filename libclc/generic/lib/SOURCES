@@ -163,6 +163,7 @@ math/round.cl
 math/rsqrt.cl
 math/sin.cl
 math/sincos.cl
+math/sincospi.cl
 math/sinh.cl
 math/sinpi.cl
 math/sqrt.cl
