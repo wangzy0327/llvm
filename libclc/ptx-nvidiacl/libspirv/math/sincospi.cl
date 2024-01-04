@@ -34,25 +34,3 @@ _CLC_V_V_VP_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, __spirv_ocl_sincospi, float
                       local, float)
 _CLC_V_V_VP_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, __spirv_ocl_sincospi, float,
                       global, float)
-
-#ifdef cl_khr_fp64
-__CLC_SINCOS(__nv_sincospi, double, double)
-
-_CLC_V_V_VP_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, __spirv_ocl_sincospi,
-                      double, private, double)
-_CLC_V_V_VP_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, __spirv_ocl_sincospi,
-                      double, local, double)
-_CLC_V_V_VP_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, __spirv_ocl_sincospi,
-                      double, global, double)
-#endif
-
-#ifdef cl_khr_fp16
-__CLC_SINCOS(__nv_sincospif, half, half)
-
-_CLC_V_V_VP_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, half, __spirv_ocl_sincospi, half,
-                      private, half)
-_CLC_V_V_VP_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, half, __spirv_ocl_sincospi, half,
-                      local, half)
-_CLC_V_V_VP_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, half, __spirv_ocl_sincospi, half,
-                      global, half)
-#endif

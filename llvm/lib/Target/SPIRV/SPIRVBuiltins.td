@@ -239,6 +239,7 @@ defm : DemangledExtendedBuiltin<"round", OpenCL_std, 55>;
 defm : DemangledExtendedBuiltin<"rsqrt", OpenCL_std, 56>;
 defm : DemangledExtendedBuiltin<"sin", OpenCL_std, 57>;
 defm : DemangledExtendedBuiltin<"sincos", OpenCL_std, 58>;
+defm : DemangledExtendedBuiltin<"sincospi", OpenCL_std, 195>;
 defm : DemangledExtendedBuiltin<"sinh", OpenCL_std, 59>;
 defm : DemangledExtendedBuiltin<"sinpi", OpenCL_std, 60>;
 defm : DemangledExtendedBuiltin<"sqrt", OpenCL_std, 61>;
