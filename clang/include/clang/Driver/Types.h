@@ -89,6 +89,9 @@ namespace types {
   /// isHIP - Is this a HIP input.
   bool isHIP(ID Id);
 
+  /// isCN - Is this a CN input.
+  bool isCN(ID Id);
+
   /// isFPGA - Is this FPGA input.
   bool isFPGA(ID Id);
 

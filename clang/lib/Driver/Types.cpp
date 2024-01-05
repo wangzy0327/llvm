@@ -110,13 +110,14 @@ bool types::canTypeBeUserSpecified(ID Id) {
       TY_Plist,         TY_RewrittenObjC, TY_RewrittenLegacyObjC,
       TY_Remap,         TY_PCH,           TY_Object,
       TY_Image,         TY_dSYM,          TY_Dependencies,
-      TY_CUDA_FATBIN,   TY_HIP_FATBIN};
+      TY_CUDA_FATBIN,   TY_HIP_FATBIN,    TY_CN_FATBIN};
   return !llvm::is_contained(kStaticLangageTypes, Id);
 }
 
 bool types::appendSuffixForType(ID Id) {
   return Id == TY_PCH || Id == TY_dSYM || Id == TY_CUDA_FATBIN ||
-         Id == TY_HIP_FATBIN;
+         Id == TY_HIP_FATBIN ||
+         Id == TY_CN_FATBIN;
 }
 
 bool types::canLipoType(ID Id) {
@@ -156,6 +157,7 @@ bool types::isAcceptedByClang(ID Id) {
   case TY_LLVM_IR: case TY_LLVM_BC:
   case TY_SPIRV:
   case TY_API_INFO:
+  case TY_CN: case TY_PP_CN:
     return true;
   }
 }
@@ -284,6 +286,17 @@ bool types::isHIP(ID Id) {
   case TY_PP_HIP:
   case TY_HIP_DEVICE:
     return true;
+  }
+}
+
+bool types::isCN(ID id){
+  switch (Id){
+    default:
+      return false;
+    case TY_CN:
+    case TY_PP_CN:
+    case TY_CN_DEVICE:
+      return true;      
   }
 }
 

@@ -22,6 +22,7 @@ def do_configure(args):
 
     libclc_amd_target_names = ';amdgcn--;amdgcn--amdhsa'
     libclc_nvidia_target_names = ';nvptx64--;nvptx64--nvidiacl'
+    libclc_cambricon_target_names = ';mlisa--;mlisa--cambriconcl'
 
     if args.llvm_external_projects:
         llvm_external_projects += ";" + args.llvm_external_projects.replace(",", ";")
@@ -59,7 +60,7 @@ def do_configure(args):
     if args.enable_esimd_emulator:
         sycl_enabled_plugins.append("esimd_emulator")
 
-    if args.cuda or args.hip:
+    if args.cuda or args.hip or args.bang:
         llvm_enable_projects += ';libclc'
 
     if args.cuda:
@@ -77,14 +78,19 @@ def do_configure(args):
             llvm_targets_to_build += ';NVPTX'
             libclc_targets_to_build += libclc_nvidia_target_names
         libclc_gen_remangled_variants = 'ON'
-
         sycl_build_pi_hip_platform = args.hip_platform
         sycl_enabled_plugins.append("hip")
+        
+    if args.bang:
+        llvm_targets_to_build += ';MLISA'
+        libclc_targets_to_build = libclc_cambricon_target_names
+        libclc_gen_remangled_variants = 'ON'
+        sycl_enabled_plugins.append("bang")     
 
     # all llvm compiler targets don't require 3rd party dependencies, so can be
     # built/tested even if specific runtimes are not available
     if args.enable_all_llvm_targets:
-        llvm_targets_to_build += ';NVPTX;AMDGPU'
+        llvm_targets_to_build += ';NVPTX;AMDGPU;MLISA'
 
     if args.werror or args.ci_defaults:
         sycl_werror = 'ON'
@@ -124,6 +130,8 @@ def do_configure(args):
                 libclc_targets_to_build += libclc_amd_target_names
             if libclc_nvidia_target_names not in libclc_targets_to_build:
                 libclc_targets_to_build += libclc_nvidia_target_names
+            if libclc_cambricon_target_names not in libclc_targets_to_build:
+                libclc_targets_to_build += libclc_cambricon_target_names                
             libclc_gen_remangled_variants = 'ON'
 
     if args.enable_plugin:
@@ -221,6 +229,7 @@ def main():
                         metavar="BUILD_TYPE", default="Release", help="build type: Debug, Release")
     parser.add_argument("--cuda", action='store_true', help="switch from OpenCL to CUDA")
     parser.add_argument("--hip", action='store_true', help="switch from OpenCL to HIP")
+    parser.add_argument("--bang", action='store_true', help="switch from OpenCL to Bang")
     parser.add_argument("--hip-platform", type=str, choices=['AMD', 'NVIDIA'], default='AMD', help="choose hardware platform for HIP backend")
     parser.add_argument("--host-target", default='X86',
                         help="host LLVM target architecture, defaults to X86, multiple targets may be provided as a semi-colon separated string")
