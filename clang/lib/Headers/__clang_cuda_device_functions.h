@@ -520,6 +520,9 @@ __DEVICE__ int __signbitf(float __a) { return __nv_signbitf(__a); }
 __DEVICE__ void __sincosf(float __a, float *__s, float *__c) {
   return __nv_fast_sincosf(__a, __s, __c);
 }
+__DEVICE__ void __sincospif(float __a, float *__s, float *__c) {
+  return __nv_sincospif(__a, __s, __c);
+}
 __DEVICE__ float __sinf(float __a) { return __nv_fast_sinf(__a); }
 __DEVICE__ int __syncthreads_and(int __a) { return __nvvm_bar0_and(__a); }
 __DEVICE__ int __syncthreads_count(int __a) { return __nvvm_bar0_popc(__a); }

@@ -72,6 +72,7 @@ namespace __sycl_std = __host_std;
 
 __SYCL_MATH_FUNCTION_OVERLOAD(cospi)
 __SYCL_MATH_FUNCTION_OVERLOAD(sinpi)
+// __SYCL_MATH_FUNCTION_OVERLOAD(sincospi)
 __SYCL_MATH_FUNCTION_OVERLOAD(tanpi)
 __SYCL_MATH_FUNCTION_OVERLOAD(sinh)
 __SYCL_MATH_FUNCTION_OVERLOAD(cosh)
@@ -620,6 +621,15 @@ std::enable_if_t<detail::is_svgenfloat<T>::value, T> sinh(T x) __NOEXC {
 template <typename T>
 std::enable_if_t<detail::is_svgenfloat<T>::value, T> sinpi(T x) __NOEXC {
   return __sycl_std::__invoke_sinpi<T>(x);
+}
+
+// svgenfloat sincos (svgenfloat x, genfloatptr cosval)
+template <typename T, typename T2>
+std::enable_if_t<
+    detail::is_svgenfloat<T>::value && detail::is_genfloatptr<T2>::value, T>
+sincospi(T x, T2 cosval) __NOEXC {
+  detail::check_vector_size<T, T2>();
+  return __sycl_std::__invoke_sincospi<T>(x, cosval);
 }
 
 // svgenfloat sqrt (svgenfloat x)

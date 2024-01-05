@@ -8444,6 +8444,98 @@ half16 __ovld sincos(half16, __private half16 *);
 #endif //cl_khr_fp16
 #endif //defined(__opencl_c_named_address_space_builtins)
 
+
+/**
+ * Compute sine and cosine of pi x. The computed sine
+ * is the return value and computed cosine is returned
+ * in cosval.
+ */
+#if defined(__opencl_c_generic_address_space)
+float __ovld sincospi(float, float *);
+float2 __ovld sincospi(float2, float2 *);
+float3 __ovld sincospi(float3, float3 *);
+float4 __ovld sincospi(float4, float4 *);
+float8 __ovld sincospi(float8, float8 *);
+float16 __ovld sincospi(float16, float16 *);
+#ifdef cl_khr_fp64
+double __ovld sincospi(double, double *);
+double2 __ovld sincospi(double2, double2 *);
+double3 __ovld sincospi(double3, double3 *);
+double4 __ovld sincospi(double4, double4 *);
+double8 __ovld sincospi(double8, double8 *);
+double16 __ovld sincospi(double16, double16 *);
+#endif //cl_khr_fp64
+#ifdef cl_khr_fp16
+half __ovld sincospi(half, half *);
+half2 __ovld sincospi(half2, half2 *);
+half3 __ovld sincospi(half3, half3 *);
+half4 __ovld sincospi(half4, half4 *);
+half8 __ovld sincospi(half8, half8 *);
+half16 __ovld sincospi(half16, half16 *);
+#endif //cl_khr_fp16
+#endif //defined(__opencl_c_generic_address_space)
+
+#if defined(__opencl_c_named_address_space_builtins)
+float __ovld sincospi(float, __global float *);
+float2 __ovld sincospi(float2, __global float2 *);
+float3 __ovld sincospi(float3, __global float3 *);
+float4 __ovld sincospi(float4, __global float4 *);
+float8 __ovld sincospi(float8, __global float8 *);
+float16 __ovld sincospi(float16, __global float16 *);
+float __ovld sincospi(float, __local float *);
+float2 __ovld sincospi(float2, __local float2 *);
+float3 __ovld sincospi(float3, __local float3 *);
+float4 __ovld sincospi(float4, __local float4 *);
+float8 __ovld sincospi(float8, __local float8 *);
+float16 __ovld sincospi(float16, __local float16 *);
+float __ovld sincospi(float, __private float *);
+float2 __ovld sincospi(float2, __private float2 *);
+float3 __ovld sincospi(float3, __private float3 *);
+float4 __ovld sincospi(float4, __private float4 *);
+float8 __ovld sincospi(float8, __private float8 *);
+float16 __ovld sincospi(float16, __private float16 *);
+#ifdef cl_khr_fp64
+double __ovld sincospi(double, __global double *);
+double2 __ovld sincospi(double2, __global double2 *);
+double3 __ovld sincospi(double3, __global double3 *);
+double4 __ovld sincospi(double4, __global double4 *);
+double8 __ovld sincospi(double8, __global double8 *);
+double16 __ovld sincospi(double16, __global double16 *);
+double __ovld sincospi(double, __local double *);
+double2 __ovld sincospi(double2, __local double2 *);
+double3 __ovld sincospi(double3, __local double3 *);
+double4 __ovld sincospi(double4, __local double4 *);
+double8 __ovld sincospi(double8, __local double8 *);
+double16 __ovld sincospi(double16, __local double16 *);
+double __ovld sincospi(double, __private double *);
+double2 __ovld sincospi(double2, __private double2 *);
+double3 __ovld sincospi(double3, __private double3 *);
+double4 __ovld sincospi(double4, __private double4 *);
+double8 __ovld sincospi(double8, __private double8 *);
+double16 __ovld sincospi(double16, __private double16 *);
+#endif //cl_khr_fp64
+#ifdef cl_khr_fp16
+half __ovld sincospi(half, __global half *);
+half2 __ovld sincospi(half2, __global half2 *);
+half3 __ovld sincospi(half3, __global half3 *);
+half4 __ovld sincospi(half4, __global half4 *);
+half8 __ovld sincospi(half8, __global half8 *);
+half16 __ovld sincospi(half16, __global half16 *);
+half __ovld sincospi(half, __local half *);
+half2 __ovld sincospi(half2, __local half2 *);
+half3 __ovld sincospi(half3, __local half3 *);
+half4 __ovld sincospi(half4, __local half4 *);
+half8 __ovld sincospi(half8, __local half8 *);
+half16 __ovld sincospi(half16, __local half16 *);
+half __ovld sincospi(half, __private half *);
+half2 __ovld sincospi(half2, __private half2 *);
+half3 __ovld sincospi(half3, __private half3 *);
+half4 __ovld sincospi(half4, __private half4 *);
+half8 __ovld sincospi(half8, __private half8 *);
+half16 __ovld sincospi(half16, __private half16 *);
+#endif //cl_khr_fp16
+#endif //defined(__opencl_c_named_address_space_builtins)
+
 /**
  * Compute hyperbolic sine.
  */

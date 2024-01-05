@@ -112,6 +112,7 @@ template <> inline void SPIRVMap<OCLExtOpKind, std::string>::init() {
   add(OpenCLLIB::Rsqrt, "rsqrt");
   add(OpenCLLIB::Sin, "sin");
   add(OpenCLLIB::Sincos, "sincos");
+  add(OpenCLLIB::Sincospi, "sincospi");
   add(OpenCLLIB::Sinh, "sinh");
   add(OpenCLLIB::Sinpi, "sinpi");
   add(OpenCLLIB::Sqrt, "sqrt");

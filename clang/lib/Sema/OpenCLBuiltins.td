@@ -617,7 +617,7 @@ foreach name = ["fma", "mad"] in {
 // available depends on whether the generic address space feature is enabled.
 multiclass MathWithPointer<list<AddressSpace> addrspaces> {
   foreach AS = addrspaces in {
-    foreach name = ["fract", "modf", "sincos"] in {
+    foreach name = ["fract", "modf", "sincos","sincospi"] in {
       def : Builtin<name, [FGenTypeN, FGenTypeN, PointerType<FGenTypeN, AS>]>;
     }
     foreach name = ["frexp", "lgamma_r"] in {

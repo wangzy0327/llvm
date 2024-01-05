@@ -511,7 +511,7 @@ foreach name = ["rootn"] in {
 }
 
 foreach AS = [GlobalAS, LocalAS, PrivateAS, GenericAS, DefaultAS] in {
-  foreach name = ["sincos"] in {
+  foreach name = ["sincos","sincospi"] in {
     def : OCLSPVBuiltin<name, [FGenTypeN, FGenTypeN, PointerType<FGenTypeN, AS>]>;
   }
 }

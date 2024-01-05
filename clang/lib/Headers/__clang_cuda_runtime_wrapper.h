@@ -232,9 +232,9 @@ static inline float rsqrt(float __a) { return rsqrtf(__a); }
 static inline float rcbrt(float __a) { return rcbrtf(__a); }
 static inline float sinpi(float __a) { return sinpif(__a); }
 static inline float cospi(float __a) { return cospif(__a); }
-static inline void sincospi(float __a, float *__b, float *__c) {
-  return sincospif(__a, __b, __c);
-}
+// static inline float* sincospi(float __a, float *__b, float *__c) {
+//   return sincospif(__a, __b, __c);
+// }
 static inline float erfcinv(float __a) { return erfcinvf(__a); }
 static inline float normcdfinv(float __a) { return normcdfinvf(__a); }
 static inline float normcdf(float __a) { return normcdff(__a); }
