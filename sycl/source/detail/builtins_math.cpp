@@ -978,6 +978,23 @@ MAKE_1V_2P(sycl_host_sincos, s::cl_float, s::cl_float, s::cl_float)
 MAKE_1V_2P(sycl_host_sincos, s::cl_double, s::cl_double, s::cl_double)
 MAKE_1V_2P(sycl_host_sincos, s::cl_half, s::cl_half, s::cl_half)
 
+// sincospi
+__SYCL_EXPORT s::cl_float sycl_host_sincospi(s::cl_float x,
+                                           s::cl_float *cosval) __NOEXC {
+  return __sincospi(x, cosval);
+}
+__SYCL_EXPORT s::cl_double sycl_host_sincospi(s::cl_double x,
+                                            s::cl_double *cosval) __NOEXC {
+  return __sincospi(x, cosval);
+}
+__SYCL_EXPORT s::cl_half sycl_host_sincospi(s::cl_half x,
+                                          s::cl_half *cosval) __NOEXC {
+  return __sincospi(x, cosval);
+}
+MAKE_1V_2P(sycl_host_sincospi, s::cl_float, s::cl_float, s::cl_float)
+MAKE_1V_2P(sycl_host_sincospi, s::cl_double, s::cl_double, s::cl_double)
+MAKE_1V_2P(sycl_host_sincospi, s::cl_half, s::cl_half, s::cl_half)
+
 // sinh
 __SYCL_EXPORT s::cl_float sycl_host_sinh(s::cl_float x) __NOEXC {
   return std::sinh(x);

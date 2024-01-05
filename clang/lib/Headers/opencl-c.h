@@ -8476,20 +8476,20 @@ half16 __ovld sincospi(half16, half16 *);
 #endif //defined(__opencl_c_generic_address_space)
 
 #if defined(__opencl_c_named_address_space_builtins)
-float __ovld sincospipi(float, __global float *);
-float2 __ovld sincospipi(float2, __global float2 *);
-float3 __ovld sincospipi(float3, __global float3 *);
-float4 __ovld sincospipi(float4, __global float4 *);
-float8 __ovld sincospipi(float8, __global float8 *);
-float16 __ovld sincospipi(float16, __global float16 *);
-float __ovld sincospipi(float, __local float *);
-float2 __ovld sincospipi(float2, __local float2 *);
-float3 __ovld sincospipi(float3, __local float3 *);
-float4 __ovld sincospipi(float4, __local float4 *);
-float8 __ovld sincospipi(float8, __local float8 *);
-float16 __ovld sincospipi(float16, __local float16 *);
-float __ovld sincospipi(float, __private float *);
-float2 __ovld sincospipi(float2, __private float2 *);
+float __ovld sincospi(float, __global float *);
+float2 __ovld sincospi(float2, __global float2 *);
+float3 __ovld sincospi(float3, __global float3 *);
+float4 __ovld sincospi(float4, __global float4 *);
+float8 __ovld sincospi(float8, __global float8 *);
+float16 __ovld sincospi(float16, __global float16 *);
+float __ovld sincospi(float, __local float *);
+float2 __ovld sincospi(float2, __local float2 *);
+float3 __ovld sincospi(float3, __local float3 *);
+float4 __ovld sincospi(float4, __local float4 *);
+float8 __ovld sincospi(float8, __local float8 *);
+float16 __ovld sincospi(float16, __local float16 *);
+float __ovld sincospi(float, __private float *);
+float2 __ovld sincospi(float2, __private float2 *);
 float3 __ovld sincospi(float3, __private float3 *);
 float4 __ovld sincospi(float4, __private float4 *);
 float8 __ovld sincospi(float8, __private float8 *);
