@@ -81,6 +81,9 @@ enum class architecture {
   intel_gpu_11_2_0 = intel_gpu_ehl,
   intel_gpu_12_0_0 = intel_gpu_tgllp,
   intel_gpu_12_10_0 = intel_gpu_dg1,
+  // Cambricon architectures
+  cambricon_npu_mtp_270,
+  cambricon_npu_mtp_372,
 };
 
 } // namespace ext::oneapi::experimental
@@ -264,6 +267,13 @@ static constexpr ext::oneapi::experimental::architecture max_architecture =
 #ifndef __SYCL_TARGET_AMD_GPU_GFX1032__
 #define __SYCL_TARGET_AMD_GPU_GFX1032__ 0
 #endif
+#ifndef __SYCL_TARGET_CAMBRICON_NPU_MTP270__
+#define __SYCL_TARGET_CAMBRICON_NPU_MTP270__ 0
+#endif
+#ifndef __SYCL_TARGET_CAMBRICON_NPU_MTP372__
+#define __SYCL_TARGET_CAMBRICON_NPU_MTP372__ 0
+#endif
+
 
 // This is true when the translation unit is compiled in AOT mode with target
 // names that supports the "if_architecture_is" features.  If an unsupported
@@ -328,7 +338,9 @@ static constexpr bool is_allowable_aot_mode =
     (__SYCL_TARGET_AMD_GPU_GFX1013__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX1030__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX1031__ == 1) ||
-    (__SYCL_TARGET_AMD_GPU_GFX1032__ == 1);
+    (__SYCL_TARGET_AMD_GPU_GFX1032__ == 1) ||
+    (__SYCL_TARGET_CAMBRICON_NPU_MTP270__ == 1) ||
+    (__SYCL_TARGET_CAMBRICON_NPU_MTP372__ == 1) ;
 
 struct IsAOTForArchitectureClass {
   // Allocate an array of size == size of
@@ -451,6 +463,10 @@ struct IsAOTForArchitectureClass {
         __SYCL_TARGET_AMD_GPU_GFX1031__ == 1;
     arr[static_cast<int>(arch::amd_gpu_gfx1032)] =
         __SYCL_TARGET_AMD_GPU_GFX1032__ == 1;
+    arr[static_cast<int>(arch::cambricon_npu_mtp_270)] =
+        __SYCL_TARGET_CAMBRICON_NPU_MTP270__ == 1;  
+    arr[static_cast<int>(arch::cambricon_npu_mtp_372)] =
+        __SYCL_TARGET_CAMBRICON_NPU_MTP372__ == 1;               
   }
 };
 

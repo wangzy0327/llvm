@@ -28,6 +28,7 @@
 #include "Targets/M68k.h"
 #include "Targets/MSP430.h"
 #include "Targets/Mips.h"
+#include "Targets/MLISA.h"
 #include "Targets/NVPTX.h"
 #include "Targets/OSTargets.h"
 #include "Targets/PNaCl.h"
@@ -401,6 +402,9 @@ TargetInfo *AllocateTarget(const llvm::Triple &Triple,
   case llvm::Triple::amdgcn:
   case llvm::Triple::r600:
     return new AMDGPUTargetInfo(Triple, Opts);
+
+  case llvm::Triple::mlisa:
+    return new MLISATargetInfo(Triple, Opts);
 
   case llvm::Triple::riscv32:
     // TODO: add cases for NetBSD, RTEMS once tested.

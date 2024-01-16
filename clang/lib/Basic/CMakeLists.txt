@@ -86,6 +86,7 @@ add_clang_library(clangBasic
   Targets/M68k.cpp
   Targets/MSP430.cpp
   Targets/Mips.cpp
+  Targets/MLISA.cpp
   Targets/NVPTX.cpp
   Targets/OSTargets.cpp
   Targets/PNaCl.cpp

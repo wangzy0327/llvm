@@ -475,6 +475,11 @@ std::string tools::getCPUName(const Driver &D, const ArgList &Args,
   case llvm::Triple::amdgcn:
     return getAMDGPUTargetGPU(T, Args);
 
+  case llvm::Triple::mlisa:
+    std::cout<<"CommonArgs Triple::mlisa value is : "<<std::cout<<A->getValue()<<std::endl;
+    if (const Arg *A = Args.getLastArg(options::OPT_march_EQ))
+      return A->getValue();
+    return "";
   case llvm::Triple::wasm32:
   case llvm::Triple::wasm64:
     return std::string(getWebAssemblyTargetCPU(Args));
