@@ -79,6 +79,8 @@ struct CudaArchToStringMap {
 #define SM(sm) SM2(sm, "compute_" #sm)
 #define GFX(gpu)                                                               \
   { CudaArch::GFX##gpu, "gfx" #gpu, "compute_amdgcn" }
+#define MLU(gpu)                                                               \
+  { CudaArch::MLU##gpu, "mlu" #gpu, "compute_mlisa" }  
 static const CudaArchToStringMap arch_names[] = {
     // clang-format off
     {CudaArch::UNUSED, "", ""},
@@ -130,6 +132,12 @@ static const CudaArchToStringMap arch_names[] = {
     GFX(1101), // gfx1101
     GFX(1102), // gfx1102
     GFX(1103), // gfx1103
+
+    MLU(220),
+    MLU(270),  //mtp_270
+    MLU(290),  
+    MLU(370),  //mtp_372
+    // MLU(590),  //mlu_592
     {CudaArch::Generic, "generic", ""},
     // clang-format on
 };

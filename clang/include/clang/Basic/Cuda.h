@@ -109,15 +109,16 @@ enum class CudaArch {
   GFX1103,
   Generic, // A processor model named 'generic' if the target backend defines a
            // public one.
-  MTP_220,
-  MTP_270,
-  MTP_290,
-  MTP_372,           
+  MLU220,
+  MLU270,
+  MLU290,
+  MLU370,           
+  MLU590,           
   LAST,
 
   CudaDefault = CudaArch::SM_35,
   HIPDefault = CudaArch::GFX803,
-  CNDefault = CudaArch::MTP_270,
+  CNDefault = CudaArch::MLU270,
 };
 
 static inline bool IsNVIDIAGpuArch(CudaArch A) {

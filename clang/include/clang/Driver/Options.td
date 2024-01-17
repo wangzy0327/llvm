@@ -995,7 +995,13 @@ def cuda_path_EQ : Joined<["--"], "cuda-path=">, Flags<[CoreOption]>, Group<i_Gr
 def cuda_path_ignore_env : Flag<["--"], "cuda-path-ignore-env">, Group<i_Group>,
   HelpText<"Ignore environment variables to detect CUDA installation">;
 def ptxas_path_EQ : Joined<["--"], "ptxas-path=">, Group<i_Group>,
-  HelpText<"Path to ptxas (used for compiling CUDA code)">;
+  HelpText<"Path to ptxas (used for compiling CUDA code)">;  
+def bang_path_EQ : Joined<["--"], "bang-path=">, Flags<[CoreOption]>, Group<i_Group>,
+  HelpText<"BANG installation path">;
+def bang_path_ignore_env : Flag<["--"], "bang-path-ignore-env">, Group<i_Group>,
+  HelpText<"Ignore environment variables to detect BANG installation">;  
+def cnas_path_EQ : Joined<["--"], "cnas-path=">, Group<i_Group>,
+  HelpText<"Path to cnas (used for compiling BANG code)">;      
 def fgpu_flush_denormals_to_zero : Flag<["-"], "fgpu-flush-denormals-to-zero">,
   HelpText<"Flush denormal floating point values to zero in CUDA/HIP device mode.">;
 def fno_gpu_flush_denormals_to_zero : Flag<["-"], "fno-gpu-flush-denormals-to-zero">;
