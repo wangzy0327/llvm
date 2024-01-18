@@ -916,7 +916,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       return;
     }
     const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
-    auto OFK = Action::OFK_CN;
+    auto OFK = Action::OFK_BANG;
     auto CNTriple = getCNOffloadTargetTriple(*this, C.getInputArgs());
     if (!CNTriple)
       return;
@@ -4495,7 +4495,7 @@ class OffloadingActionBuilder final {
     CNActionBuilder(Compilation &C, DerivedArgList &Args,
                      const Driver::InputList &Inputs,
                      OffloadingActionBuilder &OAB)
-        : CudaActionBuilderBase(C, Args, Inputs, Action::OFK_CN, OAB) {
+        : CudaActionBuilderBase(C, Args, Inputs, Action::OFK_BANG, OAB) {
       DefaultCudaArch = CudaArch::MTP_270;
       if (Args.hasArg(options::OPT_gpu_bundle_output,
                       options::OPT_no_gpu_bundle_output))

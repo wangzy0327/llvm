@@ -133,11 +133,16 @@ static const CudaArchToStringMap arch_names[] = {
     GFX(1102), // gfx1102
     GFX(1103), // gfx1103
 
-    MLU(220),
-    MLU(270),  //mtp_270
-    MLU(290),  
-    MLU(370),  //mtp_372
-    // MLU(590),  //mlu_592
+    // MLU(220),
+    // MLU(270),  //mtp_270
+    // MLU(290),  
+    // MLU(370),  //mtp_372
+    // MLU(590),  //mtp_592
+    {CudaArch::MLU220, "mtp_220", "mlu_220" },
+    {CudaArch::MLU270, "mtp_270", "mlu_270" },
+    {CudaArch::MLU290, "mtp_270", "mlu_290" },
+    {CudaArch::MLU370, "mtp_372", "mlu_370" },
+    {CudaArch::MLU590, "mtp_592", "mlu_590" },
     {CudaArch::Generic, "generic", ""},
     // clang-format on
 };
