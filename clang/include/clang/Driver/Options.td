@@ -832,12 +832,8 @@ def : Joined<["-"], "Xclang=">, Group<CompileOnly_Group>, Flags<[NoXarchOption, 
   HelpText<"Alias for -Xclang">, MetaVarName<"<arg>">;
 def Xcuda_fatbinary : Separate<["-"], "Xcuda-fatbinary">,
   HelpText<"Pass <arg> to fatbinary invocation">, MetaVarName<"<arg>">;
-def Xbang_fatbinary : Separate<["-"], "Xbang-fatbinary">,
-  HelpText<"Pass <arg> to fatbinary invocation">, MetaVarName<"<arg>">;  
 def Xcuda_ptxas : Separate<["-"], "Xcuda-ptxas">,
-  HelpText<"Pass <arg> to the ptxas assembler">, MetaVarName<"<arg>">;
-def Xbang_cnas : Separate<["-"], "Xbang-cnas">,
-  HelpText<"Pass <arg> to the cnas assembler">, MetaVarName<"<arg>">;  
+  HelpText<"Pass <arg> to the ptxas assembler">, MetaVarName<"<arg>">; 
 def Xopenmp_target : Separate<["-"], "Xopenmp-target">, Group<CompileOnly_Group>,
   HelpText<"Pass <arg> to the target offloading toolchain.">, MetaVarName<"<arg>">;
 def Xopenmp_target_EQ : JoinedAndSeparate<["-"], "Xopenmp-target=">, Group<CompileOnly_Group>,
@@ -1039,12 +1035,31 @@ def fbang_instrument_functions: Flag<["--"], "fbang_instrument_functions">,
 def bang_path_EQ : Joined<["--"], "bang-path=">, Flags<[CoreOption]>, Group<i_Group>,
   HelpText<"BANG installation path">;
 def bang_path_ignore_env : Flag<["--"], "bang-path-ignore-env">, Group<i_Group>,
-  HelpText<"Ignore environment variables to detect BANG installation">;  
-def cnas_path_EQ : Joined<["--"], "cnas-path=">, Group<i_Group>,
-  HelpText<"Path to cnas (used for compiling BANG code)">;  
+  HelpText<"Ignore environment variables to detect BANG installation">;   
 def bang_noopt_device_debug : Flag<["--"], "bang-noopt-device-debug">,
   HelpText<"Enable device-side debug info generation. Disables mlisa optimizations.">;  
-def no_bang_noopt_device_debug : Flag<["--"], "no-bang-noopt-device-debug">;      
+def no_bang_noopt_device_debug : Flag<["--"], "no-bang-noopt-device-debug">; 
+def bang_device_only : Flag<["--"], "bang-device-only">,
+  HelpText<"Compile BANG code for device only">;
+def bang_host_only : Flag<["--"], "bang-host-only">,
+  HelpText<"Compile BNAG code for host only.  Has no effect on non-BANG "
+           "compilations.">;
+def bang_compile_host_device : Flag<["--"], "bang-compile-host-device">,
+  HelpText<"Compile BANG code for both host and device (default).  Has no "
+           "effect on non-BANG compilations.">;
+def bang_fatbin_only : Flag<["--"], "bang_fatbin_only">,
+  HelpText<"Compile BANG code for both fatbinary (default).">;
+
+def Xbang_fatbinary : Separate<["-"], "Xbang-fatbinary">,
+  HelpText<"Pass <arg> to fatbinary invocation">, MetaVarName<"<arg>">;
+def Xbang_cnas : Separate<["-"], "Xbang_cnas">,
+  HelpText<"Pass <arg> to the cnas assembler">, MetaVarName<"<arg>">;
+def bang_wram_align64 : Separate<["-"], "bang_wram_align64">,
+  HelpText<"Pass <arg> to set the wram align to 64">, MetaVarName<"<arg>">;
+def wram_align_EQ : Separate<["-"], "wram_align=">,
+  HelpText<"Pass <arg> to set the wram alignement">, MetaVarName<"<arg>">;
+
+
 def fgpu_flush_denormals_to_zero : Flag<["-"], "fgpu-flush-denormals-to-zero">,
   HelpText<"Flush denormal floating point values to zero in CUDA/HIP device mode.">;
 def fno_gpu_flush_denormals_to_zero : Flag<["-"], "fno-gpu-flush-denormals-to-zero">;

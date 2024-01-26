@@ -29,6 +29,7 @@ endif(LLVM_SPIRV_BUILD_EXTERNAL)
 # LLVM_EXTERNAL_SPIRV_HEADERS_SOURCE_DIR path.
 if(NOT DEFINED LLVM_TOOL_SPIRV_HEADERS_BUILD AND
    NOT DEFINED LLVM_EXTERNAL_SPIRV_HEADERS_SOURCE_DIR)
+  # message(STATUS "##### NOT AND NOT LLVM_EXTERNAL_SPIRV_HEADERS_SOURCE_DIR is "${LLVM_EXTERNAL_SPIRV_HEADERS_SOURCE_DIR})
   set(LLVM_EXTERNAL_SPIRV_HEADERS_SOURCE_DIR
     "${CMAKE_CURRENT_BINARY_DIR}/SPIRV-Headers")
   message(STATUS "SPIR-V Headers location is not specified. Will try to download
@@ -39,12 +40,14 @@ if(NOT DEFINED LLVM_TOOL_SPIRV_HEADERS_BUILD AND
   string(STRIP "${SPIRV_HEADERS_TAG}" SPIRV_HEADERS_TAG)
   FetchContent_Declare(spirv-headers
     # GIT_REPOSITORY    https://github.com/KhronosGroup/SPIRV-Headers.git
-    GIT_REPOSITORY    ssh://git@gitlab.gxnzx12729.ict:2222/wangziyang/spirv-headers.git
+    # GIT_REPOSITORY    ssh://git@gitlab.gxnzx12729.ict:2222/wangziyang/spirv-headers.git
+    GIT_REPOSITORY    git@github.com:wangzy0327/spirv-headers.git
     GIT_TAG           ${SPIRV_HEADERS_TAG}
     SOURCE_DIR ${LLVM_EXTERNAL_SPIRV_HEADERS_SOURCE_DIR}
   )
   FetchContent_MakeAvailable(spirv-headers)
 else()
+  message(STATUS "##### LLVM_EXTERNAL_SPIRV_HEADERS_SOURCE_DIR is "${LLVM_EXTERNAL_SPIRV_HEADERS_SOURCE_DIR})
   if(NOT DEFINED LLVM_EXTERNAL_SPIRV_HEADERS_SOURCE_DIR)
     # This means LLVM_TOOL_SPIRV_HEADERS_BUILD is defined, therefore
     # SPIRV-Headers exist as a subproject.

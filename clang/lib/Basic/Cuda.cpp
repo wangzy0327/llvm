@@ -138,6 +138,7 @@ static const CudaArchToStringMap arch_names[] = {
     // MLU(290),  
     // MLU(370),  //mtp_372
     // MLU(590),  //mtp_592
+    {CudaArch::MLU100, "mtp_100", "mlu_100" },
     {CudaArch::MLU220, "mtp_220", "mlu_220" },
     {CudaArch::MLU270, "mtp_270", "mlu_270" },
     {CudaArch::MLU290, "mtp_270", "mlu_290" },

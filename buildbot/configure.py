@@ -82,10 +82,10 @@ def do_configure(args):
         sycl_enabled_plugins.append("hip")
         
     if args.bang:
-        llvm_targets_to_build += ';MLISA'
+        # llvm_targets_to_build += ';MLISA'
         libclc_targets_to_build = libclc_cambricon_target_names
         libclc_gen_remangled_variants = 'ON'
-        sycl_enabled_plugins.append("bang")     
+        sycl_enabled_plugins.append("cnrt")     
 
     # all llvm compiler targets don't require 3rd party dependencies, so can be
     # built/tested even if specific runtimes are not available
@@ -189,14 +189,22 @@ def do_configure(args):
     if args.use_libcxx:
       if not (args.libcxx_include and args.libcxx_library):
         sys.exit("Please specify include and library path of libc++ when building sycl "
-                 "runtime with it")
+                 "runtime with it")  
       cmake_cmd.extend([
             "-DSYCL_USE_LIBCXX=ON",
             "-DSYCL_LIBCXX_INCLUDE_PATH={}".format(args.libcxx_include),
             "-DSYCL_LIBCXX_LIBRARY_PATH={}".format(args.libcxx_library)])
 
-    print("[Cmake Command]: {}".format(" ".join(cmake_cmd)))
 
+    
+    print("build path : {}".format(abs_obj_dir))
+    # cmake_cmd.extend([
+    #     "-DOpenCL_HEADERS={}/_deps/ocl-headers".format(abs_obj_dir),
+    #     "-DOpenCL_LIBRARY_SRC={}/_deps/opencl-icd-loader".format(abs_obj_dir),
+    #     "-DLLVMGenXIntrinsics_SOURCE_DIR={}/_deps/vc-intrinsics-src".format(abs_obj_dir),
+    #     "-DLLVM_EXTERNAL_SPIRV_HEADERS_SOURCE_DIR={}/_deps/spirv-headers".format(abs_obj_dir),
+    #     ])
+    print("[Cmake Command]: {}".format(" ".join(cmake_cmd)))
     try:
         subprocess.check_call(cmake_cmd, cwd=abs_obj_dir)
     except subprocess.CalledProcessError:

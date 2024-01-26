@@ -154,6 +154,9 @@ endif()
 if ("hip" IN_LIST SYCL_ENABLE_PLUGINS)
   set(SYCL_BUILD_PI_HIP ON)
 endif()
+if ("cnrt" IN_LIST SYCL_ENABLE_PLUGINS)
+  set(SYCL_BUILD_PI_BANG ON)
+endif()
 if ("esimd_emulator" IN_LIST SYCL_ENABLE_PLUGINS)
   set(SYCL_BUILD_PI_ESIMD_EMULATOR ON)
 endif()
@@ -433,6 +436,18 @@ if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
 
   add_dependencies(sycl-toolchain pi_hip)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS pi_hip)
+endif()
+
+if("cnrt" IN_LIST SYCL_ENABLE_PLUGINS)
+  # Ensure that libclc is enabled.
+  list(FIND LLVM_ENABLE_PROJECTS libclc LIBCLC_FOUND)
+  if( LIBCLC_FOUND EQUAL -1 )
+    message(FATAL_ERROR
+      "CNRT support requires adding \"libclc\" to the CMake argument \"LLVM_ENABLE_PROJECTS\"")
+  endif()
+
+  add_dependencies(sycl-toolchain pi_cnrt)
+  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS pi_cnrt)
 endif()
 
 if("esimd_emulator" IN_LIST SYCL_ENABLE_PLUGINS)

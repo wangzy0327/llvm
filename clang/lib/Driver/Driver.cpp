@@ -12,6 +12,7 @@
 #include "ToolChains/AVR.h"
 #include "ToolChains/Ananas.h"
 #include "ToolChains/BareMetal.h"
+#include "ToolChains/Bang.h"
 #include "ToolChains/CSKYToolChain.h"
 #include "ToolChains/Clang.h"
 #include "ToolChains/CloudABI.h"
@@ -3976,7 +3977,8 @@ class OffloadingActionBuilder final {
 
     bool initialize() override {
       assert(AssociatedOffloadKind == Action::OFK_Cuda ||
-             AssociatedOffloadKind == Action::OFK_HIP);
+             AssociatedOffloadKind == Action::OFK_HIP ||
+             AssociatedOffloadKind == Action::OFK_BANG);
 
       // We don't need to support CUDA.
       if (AssociatedOffloadKind == Action::OFK_Cuda &&
@@ -3988,13 +3990,19 @@ class OffloadingActionBuilder final {
           !C.hasOffloadToolChain<Action::OFK_HIP>())
         return false;
 
+      // We don't need to support Bang.
+      if (AssociatedOffloadKind == Action::OFK_BANG &&
+          !C.hasOffloadToolChain<Action::OFK_BANG>())
+        return false;        
+
       Relocatable = Args.hasFlag(options::OPT_fgpu_rdc,
                                  options::OPT_fno_gpu_rdc, /*Default=*/false);
 
       const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
       assert(HostTC && "No toolchain for host compilation.");
       if (HostTC->getTriple().isNVPTX() ||
-          HostTC->getTriple().getArch() == llvm::Triple::amdgcn) {
+          HostTC->getTriple().getArch() == llvm::Triple::amdgcn ||
+          HostTC->getTriple().getArch() == llvm::Triple::mlisa) {
         // We do not support targeting NVPTX/AMDGCN for host compilation. Throw
         // an error and abort pipeline construction early so we don't trip
         // asserts that assume device-side compilation.
@@ -4006,7 +4014,9 @@ class OffloadingActionBuilder final {
       ToolChains.push_back(
           AssociatedOffloadKind == Action::OFK_Cuda
               ? C.getSingleOffloadToolChain<Action::OFK_Cuda>()
-              : C.getSingleOffloadToolChain<Action::OFK_HIP>());
+              : (AssociatedOffloadKind == Action::OFK_HIP ?
+              C.getSingleOffloadToolChain<Action::OFK_HIP>() : 
+              C.getSingleOffloadToolChain<Action::OFK_BANG>()));
 
       CompileHostOnly = C.getDriver().offloadHostOnly();
       CompileDeviceOnly = C.getDriver().offloadDeviceOnly();
@@ -4496,7 +4506,7 @@ class OffloadingActionBuilder final {
                      const Driver::InputList &Inputs,
                      OffloadingActionBuilder &OAB)
         : CudaActionBuilderBase(C, Args, Inputs, Action::OFK_BANG, OAB) {
-      DefaultCudaArch = CudaArch::MTP_270;
+      DefaultCudaArch = CudaArch::MLU270;
       if (Args.hasArg(options::OPT_gpu_bundle_output,
                       options::OPT_no_gpu_bundle_output))
         BundleOutput = Args.hasFlag(options::OPT_gpu_bundle_output,
@@ -5669,7 +5679,7 @@ class OffloadingActionBuilder final {
           LibraryPaths.emplace_back(WithInstallPath.c_str());
 
           // Select remangled libclc variant
-          std::string LibSpirvTargetName = "libspirv-mlisa-bang.bc";
+          std::string LibSpirvTargetName = "libspirv-mlisa-cambricon-bang.bc";
 
           for (StringRef LibraryPath : LibraryPaths) {
             SmallString<128> LibSpirvTargetFile(LibraryPath);
@@ -7597,6 +7607,7 @@ static StringRef getCanonicalArchString(Compilation &C,
     C.getDriver().Diag(clang::diag::err_drv_offload_bad_gpu_arch)
         << "CN" << ArchStr;
     return StringRef();
+  }
 
   if (IsNVIDIAGpuArch(Arch))
     return Args.MakeArgStringRef(CudaArchToString(Arch));

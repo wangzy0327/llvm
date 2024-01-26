@@ -10,6 +10,7 @@
 #define LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_BANG_H
 
 #include "SYCL.h"
+#include "clang/Basic/Cuda.h"
 #include "clang/Basic/Bang.h"
 #include "clang/Driver/Action.h"
 #include "clang/Driver/Multilib.h"
@@ -42,7 +43,7 @@ private:
 
   // BANG architectures for which we have raised an error in
   // CheckBangVersionSupportsArch.
-  mutable llvm::SmallSet<BangArch, 4> ArchsWithBadVersion;
+  mutable std::bitset<(int)CudaArch::LAST> ArchsWithBadVersion;
 
 public:
   BangInstallationDetector(const Driver &D, const llvm::Triple &HostTriple,
@@ -55,7 +56,7 @@ public:
   ///
   /// If either Version or Arch is unknown, does not emit an error.  Emits at
   /// most one error per Arch.
-  void CheckBangVersionSupportsArch(BangArch Arch) const;
+  void CheckBangVersionSupportsArch(CudaArch Arch) const;
 
   /// Check whether we detected a valid Cuda install.
   bool isValid() const { return IsValid; }
@@ -188,7 +189,7 @@ public:
   bool useIntegratedAs() const override { return false; }
   bool isCrossCompiling() const override { return true; }
   bool isPICDefault() const override { return false; }
-  bool isPIEDefault() const override { return false; }
+  bool isPIEDefault(const llvm::opt::ArgList &Args) const override { return false; }
   bool isPICDefaultForced() const override { return false; }
   bool SupportsProfiling() const override { return false; }
   bool supportsDebugInfoOption(const llvm::opt::Arg *A) const override;

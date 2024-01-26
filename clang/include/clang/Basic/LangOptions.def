@@ -273,6 +273,8 @@ LANGOPT(GPUDeferDiag, 1, 0, "defer host/device related diagnostic messages for C
 LANGOPT(GPUExcludeWrongSideOverloads, 1, 0, "always exclude wrong side overloads in overloading resolution for CUDA/HIP")
 LANGOPT(OffloadingNewDriver, 1, 0, "use the new driver for generating offloading code.")
 
+LANGOPT(BANGIsDevice      , 1, 0, "Generate code for BANG device")
+
 LANGOPT(SYCLIsDevice      , 1, 0, "Generate code for SYCL device")
 LANGOPT(SYCLIsHost        , 1, 0, "SYCL host compilation")
 LANGOPT(IntelFPGA         , 1, 0, "Perform ahead-of-time compilation for FPGA")

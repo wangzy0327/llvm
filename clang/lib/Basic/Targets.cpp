@@ -404,7 +404,7 @@ TargetInfo *AllocateTarget(const llvm::Triple &Triple,
     return new AMDGPUTargetInfo(Triple, Opts);
 
   case llvm::Triple::mlisa:
-    return new MLISATargetInfo(Triple, Opts);
+    return new MLISATargetInfo(Triple, Opts, /*TargetPointerWidth=*/64);
 
   case llvm::Triple::riscv32:
     // TODO: add cases for NetBSD, RTEMS once tested.

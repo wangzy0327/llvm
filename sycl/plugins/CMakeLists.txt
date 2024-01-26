@@ -4,6 +4,8 @@ if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang|IntelLLVM" )
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-covered-switch-default")
 endif()
 
+message(STATUS "########## sycl enable plugins : ${SYCL_ENABLE_PLUGINS}")
+
 foreach(plugin ${SYCL_ENABLE_PLUGINS})
   add_subdirectory(${plugin})
 endforeach()

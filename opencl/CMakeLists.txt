@@ -14,10 +14,12 @@ endif()
 # Repo URLs
 
 set(OCL_HEADERS_REPO
-  "ssh://git@gitlab.gxnzx12729.ict:2222/wangziyang/opencl-headers.git")
+  "git@github.com:wangzy0327/opencl-headers.git")
+  # "ssh://git@gitlab.gxnzx12729.ict:2222/wangziyang/opencl-headers.git")
   # "https://github.com/KhronosGroup/OpenCL-Headers.git")
 set(OCL_LOADER_REPO
-  "ssh://git@gitlab.gxnzx12729.ict:2222/wangziyang/opencl-icd-loader.git")
+  "git@github.com:wangzy0327/opencl-icd-loader.git")
+  # "ssh://git@gitlab.gxnzx12729.ict:2222/wangziyang/opencl-icd-loader.git")
   # "https://github.com/KhronosGroup/OpenCL-ICD-Loader.git")
 
 # Repo tags/hashes

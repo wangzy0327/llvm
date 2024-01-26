@@ -132,6 +132,8 @@ std::string Action::getOffloadingKindPrefix() const {
     return "device-openmp";
   case OFK_HIP:
     return "device-hip";
+  case OFK_BANG:
+    return "device-bang";    
   case OFK_SYCL:
     return "device-sycl";
 
@@ -143,12 +145,15 @@ std::string Action::getOffloadingKindPrefix() const {
 
   std::string Res("host");
   assert(!((ActiveOffloadKindMask & OFK_Cuda) &&
-           (ActiveOffloadKindMask & OFK_HIP)) &&
-         "Cannot offload CUDA and HIP at the same time");
+           (ActiveOffloadKindMask & OFK_HIP) &&
+           (ActiveOffloadKindMask & OFK_BANG)) &&
+         "Cannot offload CUDA and HIP and BANG at the same time");
   if (ActiveOffloadKindMask & OFK_Cuda)
     Res += "-cuda";
   if (ActiveOffloadKindMask & OFK_HIP)
     Res += "-hip";
+  if (ActiveOffloadKindMask & OFK_BANG)
+    Res += "-bang";    
   if (ActiveOffloadKindMask & OFK_OpenMP)
     Res += "-openmp";
   if (ActiveOffloadKindMask & OFK_SYCL)

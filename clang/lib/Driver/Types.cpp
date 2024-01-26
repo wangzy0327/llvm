@@ -158,6 +158,7 @@ bool types::isAcceptedByClang(ID Id) {
   case TY_SPIRV:
   case TY_API_INFO:
   case TY_CN: case TY_PP_CN:
+  case TY_CN_DEVICE:
     return true;
   }
 }
@@ -289,7 +290,7 @@ bool types::isHIP(ID Id) {
   }
 }
 
-bool types::isCN(ID id){
+bool types::isCN(ID Id){
   switch (Id){
     default:
       return false;

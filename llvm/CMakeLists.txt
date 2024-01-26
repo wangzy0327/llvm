@@ -429,6 +429,7 @@ set(LLVM_ALL_TARGETS
   WebAssembly
   X86
   XCore
+  # MLISA
   )
 
 # List of targets with JIT support:
@@ -892,6 +893,7 @@ set(LLVM_ENUM_ASM_PARSERS "")
 set(LLVM_ENUM_DISASSEMBLERS "")
 set(LLVM_ENUM_TARGETMCAS "")
 set(LLVM_ENUM_EXEGESIS "")
+message(STATUS "#######   llvm target to build : "${LLVM_TARGETS_TO_BUILD})
 foreach(t ${LLVM_TARGETS_TO_BUILD})
   set( td ${LLVM_MAIN_SRC_DIR}/lib/Target/${t} )
 

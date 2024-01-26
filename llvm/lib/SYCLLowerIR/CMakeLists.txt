@@ -12,8 +12,9 @@ endif()
 # NOTE: could have been added earlier from llvm/projects
 if (NOT TARGET LLVMGenXIntrinsics)
   if (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
-    set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
-    set(LLVMGenXIntrinsics_GIT_REPO ssh://git@gitlab.gxnzx12729.ict:2222/wangziyang/vc-intrinsics.git)
+    # set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
+    # set(LLVMGenXIntrinsics_GIT_REPO ssh://git@gitlab.gxnzx12729.ict:2222/wangziyang/vc-intrinsics.git)
+    set(LLVMGenXIntrinsics_GIT_REPO git@github.com:wangzy0327/vc-intrinsics.git)
     # Author: Gorban, Igor <igor.gorban@intel.com>
     # Date:   Thu Nov 24 17:13:40 2022 +0000
     # Fix build after llvm commit 4b6b248731b81deb471838ff79392993aeb6c621

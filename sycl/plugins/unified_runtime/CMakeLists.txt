@@ -4,7 +4,8 @@
 include(FetchContent)
 
 # set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-set(UNIFIED_RUNTIME_REPO "ssh://git@gitlab.gxnzx12729.ict:2222/wangziyang/unified-runtime.git")
+# set(UNIFIED_RUNTIME_REPO "ssh://git@gitlab.gxnzx12729.ict:2222/wangziyang/unified-runtime.git")
+set(UNIFIED_RUNTIME_REPO "git@github.com:wangzy0327/unified-runtime.git")
 set(UNIFIED_RUNTIME_TAG fd711c920acc4434cb52ff18b078c082d9d7f44d)
 
 message(STATUS "Will fetch Unified Runtime from ${UNIFIED_RUNTIME_REPO}")

@@ -13,6 +13,7 @@
 #include "MLISA.h"
 #include "Targets.h"
 #include "clang/Basic/Builtins.h"
+#include "clang/Basic/Cuda.h"
 #include "clang/Basic/MacroBuilder.h"
 #include "clang/Basic/TargetBuiltins.h"
 #include "llvm/ADT/StringSwitch.h"
@@ -75,7 +76,7 @@ MLISATargetInfo::MLISATargetInfo(const llvm::Triple &Triple,
   // Define available target features
   // These must be defined in sorted order!
   NoAsmVariants = true;
-  MLU = BangArch::MTP_100;
+  MLU = CudaArch::MLU270;
 
   // resetDataLayout("e-m:e-p:64:64:64-i1:8:16-i8:8:16-i32:32:32-i64:64-v16:16-v32:32-n16:32:64");
   resetDataLayout("e-p:64:64:64-i64:64-v16:16-v32:32-n16:32:64");
@@ -104,8 +105,8 @@ MLISATargetInfo::MLISATargetInfo(const llvm::Triple &Triple,
   }
 
   // Copy properties from host target.
-  PointerWidth = HostTarget->getPointerWidth(/* AddrSpace = */ 0);
-  PointerAlign = HostTarget->getPointerAlign(/* AddrSpace = */ 0);
+  PointerWidth = HostTarget->getPointerWidth(/* AddrSpace = */ LangAS::Default);
+  PointerAlign = HostTarget->getPointerAlign(/* AddrSpace = */ LangAS::Default);
   BoolWidth = HostTarget->getBoolWidth();
   BoolAlign = HostTarget->getBoolAlign();
   IntWidth = HostTarget->getIntWidth();
@@ -126,7 +127,7 @@ MLISATargetInfo::MLISATargetInfo(const llvm::Triple &Triple,
       HostTarget->getDefaultAlignForAttributeAligned();
   SizeType = HostTarget->getSizeType();
   IntMaxType = HostTarget->getIntMaxType();
-  PtrDiffType = HostTarget->getPtrDiffType(/* AddrSpace = */ 0);
+  PtrDiffType = HostTarget->getPtrDiffType(/* AddrSpace = */ LangAS::Default);
   IntPtrType = HostTarget->getIntPtrType();
   WCharType = HostTarget->getWCharType();
   WIntType = HostTarget->getWIntType();
@@ -171,79 +172,79 @@ void MLISATargetInfo::getTargetDefines(const LangOptions &Opts,
   int wram_size = 0;
   int sram_size = 0;
   switch (MLU) {
-  case BangArch::UNKNOWN: {
+  case CudaArch::UNKNOWN: {
     assert(false && "No MLU arch when compiling BANG device code.");
   } break;
-  case BangArch::TP_110: {
-    nram_size = 512;
-    wram_size = 512;
-    sram_size = 0;
-  } break;
-  case BangArch::TP_120: {
-    nram_size = 512;
-    wram_size = 256;
-    sram_size = 0;
-  } break;
-  case BangArch::MTP_100: {
-    nram_size = 512;
-    wram_size = 1024;
-    sram_size = 0;
-  } break;
-  case BangArch::TP_220: {
-    nram_size = 512;
-    wram_size = 512;
-    sram_size = 0;
-  } break;
-  case BangArch::MTP_220: {
-    nram_size = 512;
-    wram_size = 512;
-    sram_size = 2048;
-  } break;
-  case BangArch::TP_270: {
+  // case CudaArch::TP_110: {
+  //   nram_size = 512;
+  //   wram_size = 512;
+  //   sram_size = 0;
+  // } break;
+  // case CudaArch::TP_120: {
+  //   nram_size = 512;
+  //   wram_size = 256;
+  //   sram_size = 0;
+  // } break;
+  case CudaArch::MLU100: {
     nram_size = 512;
     wram_size = 1024;
     sram_size = 0;
   } break;
-  case BangArch::MTP_270: {
-    nram_size = 512;
-    wram_size = 1024;
-    sram_size = 2048;
-  } break;
-  case BangArch::MTP_290: {
+  // case CudaArch::TP_220: {
+  //   nram_size = 512;
+  //   wram_size = 512;
+  //   sram_size = 0;
+  // } break;
+  case CudaArch::MLU220: {
     nram_size = 512;
     wram_size = 512;
     sram_size = 2048;
   } break;
-  case BangArch::TP_322: {
-    nram_size = 768;
+  // case CudaArch::TP_270: {
+  //   nram_size = 512;
+  //   wram_size = 1024;
+  //   sram_size = 0;
+  // } break;
+  case CudaArch::MLU270: {
+    nram_size = 512;
     wram_size = 1024;
-    sram_size = 0;
+    sram_size = 2048;
   } break;
-  case BangArch::MTP_322: {
-    nram_size = 768;
-    wram_size = 1024;
-    sram_size = 1536;
+  case CudaArch::MLU290: {
+    nram_size = 512;
+    wram_size = 512;
+    sram_size = 2048;
   } break;
-  case BangArch::MTP_372: {
+  // case CudaArch::TP_322: {
+  //   nram_size = 768;
+  //   wram_size = 1024;
+  //   sram_size = 0;
+  // } break;
+  // case CudaArch::MTP_322: {
+  //   nram_size = 768;
+  //   wram_size = 1024;
+  //   sram_size = 1536;
+  // } break;
+  case CudaArch::MLU370: {
     nram_size = 768;
     wram_size = 1024;
     sram_size = 4096;
   } break;
-  case BangArch::MTP_392: {
-    nram_size = 512;
-    wram_size = 512;
-    sram_size = 2048;
-  } break;
-  case BangArch::TC_303: {
-    nram_size = 384;
-    wram_size = 0;
-    sram_size = 0;
-  } break;
-  case BangArch::TC_306: {
-    nram_size = 640;
-    wram_size = 0;
-    sram_size = 0;
-  } break;
+  // case CudaArch::MTP_392: {
+  //   nram_size = 512;
+  //   wram_size = 512;
+  //   sram_size = 2048;
+  // } break;
+  // case CudaArch::TC_303: {
+  //   nram_size = 384;
+  //   wram_size = 0;
+  //   sram_size = 0;
+  // } break;
+  // case CudaArch::TC_306: {
+  //   nram_size = 640;
+  //   wram_size = 0;
+  //   sram_size = 0;
+  // } break;
   default:
     assert(false && "No MLU arch when compiling BANG device code.");
     break;
@@ -257,42 +258,44 @@ void MLISATargetInfo::getTargetDefines(const LangOptions &Opts,
     // Set __BANG_ARCH__ for the MLU specified.
     std::string BANGArchCode = [this] {
       switch (MLU) {
-      case BangArch::MTP_1FF:
-      case BangArch::MTP_2FF:
-      case BangArch::FUTURE:
-      case BangArch::UNKNOWN:
+      // case CudaArch::MTP_1FF:
+      // case CudaArch::MTP_2FF:
+      // case CudaArch::FUTURE:
+      case CudaArch::UNKNOWN:
         assert(false && "No MLU arch when compiling BANG device code.");
         return "";
-      case BangArch::TP_110:
-        return "110";
-      case BangArch::MTP_100:
+      // case CudaArch::TP_110:
+      //   return "110";
+      case CudaArch::MLU100:
         return "100";
-      case BangArch::TP_120:
-        return "120";
-      case BangArch::TP_220:
+      // case CudaArch::TP_120:
+      //   return "120";
+      // case CudaArch::TP_220:
+      //   return "220";
+      case CudaArch::MLU220:
         return "220";
-      case BangArch::MTP_220:
-        return "220";
-      case BangArch::TP_270:
+      // case CudaArch::TP_270:
+      //   return "270";
+      case CudaArch::MLU270:
         return "270";
-      case BangArch::MTP_270:
-        return "270";
-      case BangArch::MTP_290:
+      case CudaArch::MLU290:
         return "290";
-      case BangArch::TP_322:
-        return "322";
-      case BangArch::MTP_322:
-        return "322";
-      case BangArch::MTP_372:
+      // case CudaArch::TP_322:
+      //   return "322";
+      // case CudaArch::MTP_322:
+      //   return "322";
+      case CudaArch::MLU370:
         return "372";
-      case BangArch::MTP_392:
-        return "392";
-      case BangArch::TC_303:
-        return "303";
-      case BangArch::TC_306:
-        return "306";
+      case CudaArch::MLU590:
+        return "592";        
+      // case CudaArch::MTP_392:
+      //   return "392";
+      // case CudaArch::TC_303:
+      //   return "303";
+      // case CudaArch::TC_306:
+      //   return "306";
       }
-      llvm_unreachable("unhandled BangArch");
+      llvm_unreachable("unhandled CudaArch");
     }();
     Builder.defineMacro("__BANG_ARCH__", BANGArchCode);
   }
@@ -314,55 +317,53 @@ bool MLISATargetInfo::hasFeature(StringRef Feature) const {
     // Has Neural Memory per Core
     .Case("nram", true)
     // Has Weight Memory per Core
-    .Case("wram", MLU >= BangArch::MTP_100)
+    .Case("wram", MLU >= CudaArch::MLU100)
     // Has Shared Memory per Cluster
-    .Case("sram", MLU > BangArch::MTP_1FF && MLU != BangArch::TP_220 &&
-                  MLU != BangArch::TP_270 && MLU != BangArch::TP_322 &&
-                  MLU != BangArch::TC_303 && MLU != BangArch::TC_306)
+    .Case("sram", MLU > CudaArch::MLU100)
     // Has Level-0 Cache per Core
-    .Case("l0c", MLU > BangArch::MTP_1FF)
+    .Case("l0c", MLU > CudaArch::MLU100)
     // Has Level-1 Cache per Cluster
     .Case("l1c", false)
     // Has Level-2 Cache per Device
-    .Case("l2c", MLU >= BangArch::MTP_392)
+    .Case("l2c", MLU >= CudaArch::MLU370)
     // Has Neural Function Unit per Core
     .Case("nfu", true)
     // Has Weight Function Unit per Core
-    .Case("wfu", MLU >= BangArch::MTP_100)
+    .Case("wfu", MLU >= CudaArch::MLU100)
     // Has Grid Function Unit per Core
-    .Case("gfu", MLU > BangArch::MTP_2FF)
+    .Case("gfu", MLU >= CudaArch::MLU370)
     // Support Stream Vector Compute
     .Case("svc", true)
     // Support Tensorized Compute
-    .Case("trc", MLU > BangArch::MTP_2FF)
+    .Case("trc", MLU >= CudaArch::MLU370)
     // Support Grid Stencil Compute
-    .Case("gsc", MLU > BangArch::MTP_2FF)
+    .Case("gsc", MLU >= CudaArch::MLU370)
     // Allow half type
     .Case("fp16", true)
     // Allow float type
-    .Case("fp32", MLU > BangArch::MTP_1FF)
+    .Case("fp32", MLU > CudaArch::MLU100)
     // Allow double type
     .Case("fp64", false)
     // Allow bfloat16 type
-    .Case("bf16", MLU > BangArch::MTP_2FF)
+    .Case("bf16", MLU >= CudaArch::MLU370)
     // Allow tfloat32 type
-    .Case("tf32", MLU == BangArch::MTP_392)
+    // .Case("tf32", MLU == CudaArch::MTP_392)
     // BANG v1.0 compute compatibility
-    .Case("compute_10", (MLU > BangArch::UNKNOWN) && (MLU < BangArch::MTP_1FF))
+    .Case("compute_10", (MLU > CudaArch::UNKNOWN) && (MLU <= CudaArch::MLU100))
     // BANG v2.0 compute compatibility
-    .Case("compute_20", (MLU > BangArch::MTP_1FF) && (MLU < BangArch::MTP_2FF))
+    .Case("compute_20", (MLU >= CudaArch::MLU220) && (MLU <= CudaArch::MLU270))
     // BANG v3.0 compute compatibility
-    .Case("compute_30", (MLU > BangArch::MTP_2FF) && (MLU < BangArch::MTP_392))
+    .Case("compute_30", (MLU > CudaArch::MLU270) && (MLU <= CudaArch::MLU370))
     // BANG v3.5 compute compatibility
-    .Case("compute_35", (MLU > BangArch::MTP_372) && (MLU <= BangArch::MTP_392))
-    .Case("tc_303", MLU == BangArch::TC_303)
-    .Case("tc_306", MLU == BangArch::TC_306)
-    .Case("tp_220", MLU == BangArch::TP_220)
-    .Case("tp_322", MLU == BangArch::TP_322)
-    .Case("mtp_220", MLU == BangArch::MTP_220)
-    .Case("mtp_322", MLU == BangArch::MTP_322)
-    .Case("mtp_372", MLU == BangArch::MTP_372)
-    .Case("mtp_392", MLU == BangArch::MTP_392)
+    // .Case("compute_35", (MLU > CudaArch::MLU370) && (MLU <= CudaArch::MLU590))
+    .Case("compute_50", (MLU > CudaArch::MLU370) && (MLU <= CudaArch::MLU590))
+    // .Case("tc_303", MLU == CudaArch::TC_303)
+    // .Case("tc_306", MLU == CudaArch::TC_306)
+    // .Case("tp_220", MLU == CudaArch::TP_220)
+    // .Case("tp_322", MLU == CudaArch::TP_322)
+    .Case("mtp_220", MLU == CudaArch::MLU220)
+    .Case("mtp_372", MLU == CudaArch::MLU370)
+    .Case("mtp_592", MLU == CudaArch::MLU590)
     .Default(false);
   
 }

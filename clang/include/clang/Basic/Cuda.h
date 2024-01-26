@@ -109,6 +109,7 @@ enum class CudaArch {
   GFX1103,
   Generic, // A processor model named 'generic' if the target backend defines a
            // public one.
+  MLU100,
   MLU220,
   MLU270,
   MLU290,
@@ -132,7 +133,7 @@ static inline bool IsAMDGpuArch(CudaArch A) {
 
 static inline bool IsMLISAArch(CudaArch A) {
   // Generic processor model is for testing only.
-  return A >= CudaArch::MTP_270 && A < CudaArch::Generic;
+  return A >= CudaArch::MLU270 && A < CudaArch::Generic;
 }
 
 const char *CudaArchToString(CudaArch A);

@@ -14,6 +14,7 @@
 #define LLVM_CLANG_LIB_BASIC_TARGETS_MLISA_H
 
 #include "clang/Basic/Bang.h"
+#include "clang/Basic/Cuda.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/TargetOptions.h"
 #include "llvm/ADT/Triple.h"
@@ -59,7 +60,7 @@ static const int MLISADWARFAddrSpaceMap[] = {
 class MLISATargetInfo : public TargetInfo {
   static const char *const GCCRegNames[];
   static const Builtin::Info BuiltinInfo[];
-  BangArch MLU;
+  CudaArch MLU;
   std::unique_ptr<TargetInfo> HostTarget;
 
 public:
@@ -81,7 +82,7 @@ public:
   // Target feature map see: llvm/lib/Target/MLISA/MLISA.td
   bool hasFeature(StringRef Feature) const override;
 
-  bool hasExtIntType() const override { return true; }
+  // bool hasExtIntType() const { return true; }
 
   ArrayRef<const char *> getGCCRegNames() const override;
   ArrayRef<TargetInfo::GCCRegAlias> getGCCRegAliases() const override {
@@ -90,7 +91,7 @@ public:
   }
 
   bool validateAsmConstraint(const char *&Name,
-                             TargetInfo::ConstraintInfo &Info) const {
+                             TargetInfo::ConstraintInfo &Info) const override {
     switch (*Name) {
     default:
       return false;
@@ -110,18 +111,18 @@ public:
     return "";
   }
   
-  BuiltinVaListKind getBuiltinVaListKind() const {
+  BuiltinVaListKind getBuiltinVaListKind() const override {
     // FIXME: implement
     return TargetInfo::CharPtrBuiltinVaList;
   }
 
   bool isValidCPUName(StringRef Name) const override {
-    return StringToBangArch(Name) != BangArch::UNKNOWN;
+    return StringToCudaArch(Name) != CudaArch::UNKNOWN;
   }
 
   bool setCPU(const std::string &Name) override {
-    MLU = StringToBangArch(Name);
-    return MLU != BangArch::UNKNOWN;
+    MLU = StringToCudaArch(Name.c_str());
+    return MLU != CudaArch::UNKNOWN;
   }
 
   void setSupportedOpenCLOpts() override {

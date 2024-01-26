@@ -52,6 +52,7 @@ set( LIBCLC_TARGETS_ALL
   nvptx64--nvidiacl
   spirv-mesa3d-
   spirv64-mesa3d-
+  mlisa--
 )
 set( LIBCLC_TEST_TARGETS_ALL
   nvptx--nvidiacl
@@ -128,6 +129,8 @@ find_program( LLVM_SPIRV llvm-spirv PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PA
 find_program( LIBCLC_REMANGLER libclc-remangler PATHS ${LLVM_TOOLS_BINARY_DIR}
 							NO_DEFAULT_PATH )
 
+set(LLVM_SPIRV )
+
 # Print toolchain
 message( "clang: ${LLVM_CLANG}" )
 message( "llvm-as: ${LLVM_AS}" )
@@ -135,7 +138,7 @@ message( "llvm-link: ${LLVM_LINK}" )
 message( "opt: ${LLVM_OPT}" )
 message( "llvm-spirv: ${LLVM_SPIRV}" )
 message( "libclc-remangler: ${LIBCLC_REMANGLER}" )
-message( "" )
+
 if( NOT LLVM_CLANG OR NOT LLVM_OPT OR NOT LLVM_AS OR NOT LLVM_LINK
 		OR NOT LIBCLC_REMANGLER )
 	message( FATAL_ERROR "toolchain incomplete!" )
@@ -179,6 +182,7 @@ set( nvptx--nvidiacl_devices none )
 set( nvptx64--nvidiacl_devices none )
 set( spirv-mesa3d-_devices none )
 set( spirv64-mesa3d-_devices none )
+set( mlisa--_devices none )
 
 # Setup aliases
 set( cedar_aliases palm sumo sumo2 redwood juniper )

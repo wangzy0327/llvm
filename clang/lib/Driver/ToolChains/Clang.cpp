@@ -4769,6 +4769,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   bool IsCudaDevice = JA.isDeviceOffloading(Action::OFK_Cuda);
   bool IsHIP = JA.isOffloading(Action::OFK_HIP);
   bool IsHIPDevice = JA.isDeviceOffloading(Action::OFK_HIP);
+  bool IsBang = JA.isOffloading(Action::OFK_BANG);
+  bool IsBangDevice = JA.isDeviceOffloading(Action::OFK_BANG);  
   bool IsOpenMPDevice = JA.isDeviceOffloading(Action::OFK_OpenMP);
   bool IsSYCLOffloadDevice = JA.isDeviceOffloading(Action::OFK_SYCL);
   bool IsSYCL = JA.isOffloading(Action::OFK_SYCL);
@@ -4823,7 +4825,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       ExtractAPIInputs.push_back(I);
     } else if (IsHostOffloadingAction) {
       HostOffloadingInputs.push_back(I);
-    } else if ((IsCuda || IsHIP) && !CudaDeviceInput) {
+    } else if ((IsCuda || IsHIP || IsBang) && !CudaDeviceInput) {
       CudaDeviceInput = &I;
     } else if (IsOpenMPDevice && !OpenMPDeviceInput) {
       OpenMPDeviceInput = &I;
@@ -4835,14 +4837,14 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   }
 
   const llvm::Triple *AuxTriple =
-      (IsSYCL || IsCuda || IsHIP) ? TC.getAuxTriple() : nullptr;
+      (IsSYCL || IsCuda || IsHIP || IsBang) ? TC.getAuxTriple() : nullptr;
   bool IsWindowsMSVC = RawTriple.isWindowsMSVCEnvironment();
   bool IsIAMCU = RawTriple.isOSIAMCU();
 
   // Adjust IsWindowsXYZ for CUDA/HIP/SYCL compilations.  Even when compiling in
   // device mode (i.e., getToolchain().getTriple() is NVPTX/AMDGCN, not
   // Windows), we need to pass Windows-specific flags to cc1.
-  if (IsCuda || IsHIP || IsSYCL)
+  if (IsCuda || IsHIP || IsBang || IsSYCL)
     IsWindowsMSVC |= AuxTriple && AuxTriple->isWindowsMSVCEnvironment();
 
   // C++ is not supported for IAMCU.
@@ -4868,22 +4870,30 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     Args.ClaimAllArgs(options::OPT_gen_cdb_fragment_path);
   }
 
-  if (IsCuda || IsHIP) {
+  if (IsCuda || IsHIP || IsBang) {
     // We have to pass the triple of the host if compiling for a CUDA/HIP device
     // and vice-versa.
     std::string NormalizedTriple;
     if (JA.isDeviceOffloading(Action::OFK_Cuda) ||
-        JA.isDeviceOffloading(Action::OFK_HIP))
+        JA.isDeviceOffloading(Action::OFK_HIP) ||
+        JA.isDeviceOffloading(Action::OFK_BANG))
       NormalizedTriple = C.getSingleOffloadToolChain<Action::OFK_Host>()
                              ->getTriple()
                              .normalize();
     else {
       // Host-side compilation.
-      NormalizedTriple =
-          (IsCuda ? C.getSingleOffloadToolChain<Action::OFK_Cuda>()
-                  : C.getSingleOffloadToolChain<Action::OFK_HIP>())
-              ->getTriple()
-              .normalize();
+      // NormalizedTriple =
+      //     (IsCuda ? C.getSingleOffloadToolChain<Action::OFK_Cuda>()
+      //             : C.getSingleOffloadToolChain<Action::OFK_HIP>())
+      //         ->getTriple()
+      //         .normalize();
+      if(IsCuda){
+        NormalizedTriple = C.getSingleOffloadToolChain<Action::OFK_Cuda>()->getTriple().normalize();
+      }else if(IsHIP){
+        NormalizedTriple = C.getSingleOffloadToolChain<Action::OFK_HIP>()->getTriple().normalize();
+      }else if(IsBang){
+        NormalizedTriple = C.getSingleOffloadToolChain<Action::OFK_BANG>()->getTriple().normalize();
+      }
       if (IsCuda) {
         // We need to figure out which CUDA version we're compiling for, as that
         // determines how we load and launch GPU kernels.
@@ -5966,7 +5976,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // Prepare `-aux-target-cpu` and `-aux-target-feature` unless
   // `--gpu-use-aux-triple-only` is specified.
   if (!Args.getLastArg(options::OPT_gpu_use_aux_triple_only) &&
-      (IsCudaDevice || (IsSYCL && IsSYCLOffloadDevice) || IsHIPDevice)) {
+      (IsCudaDevice || (IsSYCL && IsSYCLOffloadDevice) || IsHIPDevice || IsBangDevice)) {
     const ArgList &HostArgs =
         C.getArgsForToolChain(nullptr, StringRef(), Action::OFK_None);
     std::string HostCPU =
@@ -6920,13 +6930,13 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                       options::OPT_fno_hip_kernel_arg_name);
   }
 
-  if (IsCuda || IsHIP || IsSYCL) {
+  if (IsCuda || IsHIP || IsBang || IsSYCL) {
     if (IsRDCMode)
       CmdArgs.push_back("-fgpu-rdc");
     else
       CmdArgs.push_back("-fno-gpu-rdc");
   }
-  if (IsCuda || IsHIP) {
+  if (IsCuda || IsHIP || IsBang) {
     if (Args.hasFlag(options::OPT_fgpu_defer_diag,
                      options::OPT_fno_gpu_defer_diag, false))
       CmdArgs.push_back("-fgpu-defer-diag");
@@ -6959,7 +6969,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // Forward -f options with positive and negative forms; we translate these by
   // hand.  Do not propagate PGO options to the GPU-side compilations as the
   // profile info is for the host-side compilation only.
-  if (!(IsCudaDevice || IsHIPDevice)) {
+  if (!(IsCudaDevice || IsHIPDevice || IsBangDevice)) {
     if (Arg *A = getLastProfileSampleUseArg(Args)) {
       auto *PGOArg = Args.getLastArg(
           options::OPT_fprofile_generate, options::OPT_fprofile_generate_EQ,
@@ -7614,11 +7624,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // Host-side offloading compilation receives all device-side outputs. Include
   // them in the host compilation depending on the target. If the host inputs
   // are not empty we use the new-driver scheme, otherwise use the old scheme.
-  if ((IsCuda || IsHIP) && CudaDeviceInput) {
+  if ((IsCuda || IsHIP || IsBang) && CudaDeviceInput) {
     CmdArgs.push_back("-fcuda-include-gpubinary");
     CmdArgs.push_back(CudaDeviceInput->getFilename());
   } else if (!HostOffloadingInputs.empty()) {
-    if ((IsCuda || IsHIP) && !IsRDCMode) {
+    if ((IsCuda || IsHIP || IsBang) && !IsRDCMode) {
       assert(HostOffloadingInputs.size() == 1 && "Only one input expected");
       CmdArgs.push_back("-fcuda-include-gpubinary");
       CmdArgs.push_back(HostOffloadingInputs.front().getFilename());
@@ -7635,7 +7645,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-fcuda-short-ptr");
   }
 
-  if (IsCuda || IsHIP) {
+  if (IsCuda || IsHIP || IsBang) {
     // Determine the original source input.
     const Action *SourceAction = &JA;
     while (SourceAction->getKind() != Action::InputClass) {
@@ -7652,7 +7662,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     Args.AddLastArg(CmdArgs, options::OPT_fgpu_default_stream_EQ);
   }
 
-  if (IsCudaDevice || IsHIPDevice || IsSYCLOffloadDevice) {
+  if (IsCudaDevice || IsHIPDevice || IsBangDevice || IsSYCLOffloadDevice) {
     StringRef InlineThresh =
         Args.getLastArgValue(options::OPT_fgpu_inline_threshold_EQ);
     if (!InlineThresh.empty()) {
@@ -8816,8 +8826,8 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
                    : Action::GetOffloadKindName(CurKind);
     Triples += '-';
     Triples += CurTC->getTriple().normalize();
-    if ((CurKind == Action::OFK_HIP || CurKind == Action::OFK_OpenMP ||
-         CurKind == Action::OFK_Cuda || CurKind == Action::OFK_SYCL) &&
+    if ((CurKind == Action::OFK_BANG|| CurKind == Action::OFK_HIP ||
+         CurKind == Action::OFK_OpenMP || CurKind == Action::OFK_Cuda || CurKind == Action::OFK_SYCL) &&
         !StringRef(CurDep->getOffloadingArch()).empty() &&
         !TCArgs.hasArg(options::OPT_fno_bundle_offload_arch)) {
       Triples += '-';
@@ -9007,6 +9017,7 @@ void OffloadBundler::ConstructJobMultipleOutputs(
     if ((Dep.DependentOffloadKind == Action::OFK_HIP ||
          Dep.DependentOffloadKind == Action::OFK_OpenMP ||
          Dep.DependentOffloadKind == Action::OFK_Cuda ||
+         Dep.DependentOffloadKind == Action::OFK_BANG ||
          Dep.DependentOffloadKind == Action::OFK_SYCL) &&
         !Dep.DependentBoundArch.empty() &&
         !TCArgs.hasArg(options::OPT_fno_bundle_offload_arch)) {
@@ -9882,7 +9893,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
   const Driver &D = getToolChain().getDriver();
   const llvm::Triple TheTriple = getToolChain().getTriple();
   ArgStringList CmdArgs;
-
+  llvm::outs()<<"###### linkerWrapper construct Job ....."<<"endl";
   // Pass the CUDA path to the linker wrapper tool.
   for (Action::OffloadKind Kind : {Action::OFK_Cuda, Action::OFK_OpenMP}) {
     auto TCRange = C.getOffloadToolChains(Kind);
