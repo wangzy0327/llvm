@@ -5480,6 +5480,8 @@ static Value *EmitTargetArchBuiltinExpr(CodeGenFunction *CGF,
   case llvm::Triple::loongarch32:
   case llvm::Triple::loongarch64:
     return CGF->EmitLoongArchBuiltinExpr(BuiltinID, E);
+  case llvm::Triple::mlisa:
+    return CGF->EmitMLISABuiltinExpr(BuiltinID, E);    
   default:
     return nullptr;
   }
@@ -20536,6 +20538,33 @@ CodeGenFunction::EmitNVPTXBuiltinExpr(unsigned BuiltinID, const CallExpr *E) {
   }
   default:
     return nullptr;
+  }
+}
+
+
+Value *CodeGenFunction::EmitMLISABuiltinExpr(unsigned BuiltinID,
+                                              const CallExpr *E) {
+  llvm::AtomicOrdering AO = llvm::AtomicOrdering::SequentiallyConsistent;
+  llvm::SyncScope::ID SSID;
+  switch (BuiltinID) {
+  case MLISA::BI__mlvm_read_mlu_sreg_taskidx:
+    return emitRangedBuiltin(*this, Intrinsic::mlvm_read_mlu_sreg_taskidx, 0, 1024);
+  case MLISA::BI__mlvm_read_mlu_sreg_taskidy:
+    return emitRangedBuiltin(*this, Intrinsic::mlvm_read_mlu_sreg_taskidy, 0, 1024);
+  case MLISA::BI__mlvm_read_mlu_sreg_taskidz:
+    return emitRangedBuiltin(*this, Intrinsic::mlvm_read_mlu_sreg_taskidz, 0, 1024);
+  case MLISA::BI__mlvm_stream_add_f32: {
+    llvm::Function *F = CGM.getIntrinsic(Intrinsic::mlvm_stream_add_f32);
+    Value *Src0x = EmitScalarExpr(E->getArg(0));
+    Value *Src0 = Builder.CreatePointerBitCastOrAddrSpaceCast(Src0x, Int8PtrTy);
+    Value *Src1x = EmitScalarExpr(E->getArg(1));
+    Value *Src1 = Builder.CreatePointerBitCastOrAddrSpaceCast(Src1x, Int8PtrTy);
+    Value *Src2x = EmitScalarExpr(E->getArg(2));
+    Value *Src2 = Builder.CreatePointerBitCastOrAddrSpaceCast(Src2x, Int8PtrTy);
+    Value *Src3 = EmitScalarExpr(E->getArg(3));
+    return Builder.CreateCall(F, {Src0, Src1, Src2, Src3});
+  }
+
   }
 }
 

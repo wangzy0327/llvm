@@ -887,6 +887,15 @@ void SYCLToolChain::TranslateGPUTargetOpt(const llvm::opt::ArgList &Args,
         ArgString = OffloadArch;
         parseTargetOpts(ArgString, Args, CmdArgs);
         A->claim();
+      }else if (auto GpuDevice =
+              tools::SYCL::gen::isGPUTarget<tools::SYCL::gen::CambriconGPU>(
+                  A->getValue())) {
+        StringRef ArgString;
+        SmallString<64> OffloadArch("--offload-arch=");
+        OffloadArch += GpuDevice->data();
+        ArgString = OffloadArch;
+        parseTargetOpts(ArgString, Args, CmdArgs);
+        A->claim();
       }
     }
   }

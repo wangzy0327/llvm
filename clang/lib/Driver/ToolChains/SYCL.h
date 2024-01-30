@@ -112,6 +112,7 @@ SmallString<64> getGenDeviceMacro(StringRef DeviceName);
 constexpr char IntelGPU[] = "intel_gpu_";
 constexpr char NvidiaGPU[] = "nvidia_gpu_";
 constexpr char AmdGPU[] = "amd_gpu_";
+constexpr char CambriconGPU[] = "cambricon_gpu_";
 
 template <auto GPUArh> llvm::Optional<StringRef> isGPUTarget(StringRef Target) {
   // Handle target specifications that resemble '(intel, nvidia, amd)_gpu_*'

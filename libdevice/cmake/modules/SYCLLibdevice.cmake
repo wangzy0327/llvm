@@ -44,12 +44,22 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
   endif()
 endif()
 
+message(STATUS "##### llvm targets to build : "${LLVM_TARGETS_TO_BUILD})
+
 if ("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
   string(APPEND sycl_targets_opt ",nvptx64-nvidia-cuda")
   list(APPEND compile_opts
     "-fno-sycl-libspirv"
     "-fno-bundle-offload-arch"
     "-nocudalib")
+endif()
+
+if ("MLISA" IN_LIST LLVM_TARGETS_TO_BUILD)
+  string(APPEND sycl_targets_opt ",mlisa-cambricon-bang")
+  list(APPEND compile_opts
+    "-fno-sycl-libspirv"
+    "-fno-bundle-offload-arch"
+    "-noneuwarelib")
 endif()
 
 if (WIN32)

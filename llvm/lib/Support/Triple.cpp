@@ -142,6 +142,8 @@ StringRef Triple::getArchTypePrefix(ArchType Kind) {
   // NVPTX intrinsics are namespaced under nvvm.
   case nvptx:       return "nvvm";
   case nvptx64:     return "nvvm";
+  
+  case mlisa:       return "mlvm";
 
   case le32:        return "le32";
   case le64:        return "le64";
@@ -359,6 +361,7 @@ Triple::ArchType Triple::getArchTypeForLLVMName(StringRef Name) {
     .Case("xcore", xcore)
     .Case("nvptx", nvptx)
     .Case("nvptx64", nvptx64)
+    .Case("mlisa", mlisa)
     .Case("le32", le32)
     .Case("le64", le64)
     .Case("amdil", amdil)
@@ -499,6 +502,7 @@ static Triple::ArchType parseArch(StringRef ArchName) {
     .Case("xcore", Triple::xcore)
     .Case("nvptx", Triple::nvptx)
     .Case("nvptx64", Triple::nvptx64)
+    .Case("mlisa", Triple::mlisa)
     .Case("le32", Triple::le32)
     .Case("le64", Triple::le64)
     .Case("amdil", Triple::amdil)
@@ -1528,7 +1532,6 @@ Triple Triple::get32BitArchVariant() const {
   case Triple::m68k:
   case Triple::mips:
   case Triple::mipsel:
-  case Triple::mlisa:
   case Triple::nvptx:
   case Triple::ppc:
   case Triple::ppcle:
@@ -1563,6 +1566,7 @@ Triple Triple::get32BitArchVariant() const {
     T.setArch(Triple::mipsel, getSubArch());
     break;
   case Triple::nvptx64:        T.setArch(Triple::nvptx);   break;
+  case Triple::mlisa:          T.setArch(Triple::mlisa);   break;
   case Triple::ppc64:          T.setArch(Triple::ppc);     break;
   case Triple::ppc64le:        T.setArch(Triple::ppcle);   break;
   case Triple::renderscript64: T.setArch(Triple::renderscript32); break;
@@ -1680,6 +1684,7 @@ Triple Triple::getBigEndianArchVariant() const {
   case Triple::loongarch32:
   case Triple::loongarch64:
   case Triple::msp430:
+  case Triple::mlisa:
   case Triple::nvptx64:
   case Triple::nvptx:
   case Triple::r600:
@@ -1785,6 +1790,7 @@ bool Triple::isLittleEndian() const {
   case Triple::mips64el:
   case Triple::mipsel:
   case Triple::msp430:
+  case Triple::mlisa:
   case Triple::nvptx64:
   case Triple::nvptx:
   case Triple::ppcle:

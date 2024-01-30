@@ -296,6 +296,15 @@ static DeviceDebugInfoLevel mustEmitDebugInfo(const ArgList &Args) {
   return willEmitRemarks(Args) ? DebugDirectivesOnly : DisableDebugInfo;
 }
 
+void MLISA::BackendCompiler::ConstructJob(Compilation &C, const JobAction &JA,
+                                    const InputInfo &Output,
+                                    const InputInfoList &Inputs,
+                                    const ArgList &Args,
+                                    const char *LinkingOutput) const {
+  llvm::outs()<<"MLISA backend Compiler does not implement ConstructJob"<<"\n";
+  return ;
+}
+
 void MLISA::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
                                     const InputInfo &Output,
                                     const InputInfoList &Inputs,
@@ -531,6 +540,12 @@ void MLISA::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   }
 }
 
+void MLISA::getMLISATargetFeatures(const Driver &D, const llvm::Triple &Triple,
+                                   const llvm::opt::ArgList &Args,
+                                   std::vector<StringRef> &Features) {
+  llvm::outs()<<"mlisa does not have target features"<<"\n";
+}
+
 /// BANG toolchain.  Our assembler is cnas, and our "linker" is fatbinary,
 /// which isn't properly a linker but nonetheless performs the step of stitching
 /// together object files from the assembler into a single blob.
@@ -559,7 +574,7 @@ std::string BangToolChain::getInputFilename(const InputInfo &Input) const {
 
 // Select remangled libclc variant. 64-bit longs default
 static const char *getLibSpirvTargetName(const ToolChain &HostTC) {
-  return "libspirv-mlisa-bang.bc";
+  return "libspirv-mlisa-cambricon-bang.bc";
 }
 
 void BangToolChain::addClangTargetOptions(
@@ -668,6 +683,33 @@ void BangToolChain::addClangTargetOptions(
       options::OPT_fprofile_instr_generate_EQ);
 }
 
+bool BangToolChain::supportsDebugInfoOption(const llvm::opt::Arg *A) const {
+  const Option &O = A->getOption();
+  return (O.matches(options::OPT_gN_Group) &&
+          !O.matches(options::OPT_gmodules)) ||
+         O.matches(options::OPT_g_Flag) ||
+         O.matches(options::OPT_ggdbN_Group) || O.matches(options::OPT_ggdb) ||
+         O.matches(options::OPT_gdwarf) || O.matches(options::OPT_gdwarf_2) ||
+         O.matches(options::OPT_gdwarf_3) || O.matches(options::OPT_gdwarf_4) ||
+         O.matches(options::OPT_gdwarf_5) ||
+         O.matches(options::OPT_gcolumn_info);
+}
+
+void BangToolChain::adjustDebugInfoKind(
+    codegenoptions::DebugInfoKind &DebugInfoKind, const ArgList &Args) const {
+  switch (mustEmitDebugInfo(Args)) {
+  case DisableDebugInfo:
+    DebugInfoKind = codegenoptions::NoDebugInfo;
+    break;
+  case DebugDirectivesOnly:
+    DebugInfoKind = codegenoptions::DebugDirectivesOnly;
+    break;
+  case EmitSameDebugInfoAsHost:
+    // Use same debug info level as the host.
+    break;
+  }
+}
+
 void BangToolChain::AddBangIncludeArgs(const ArgList &DriverArgs,
                                        ArgStringList &CC1Args) const {
   // Check our BANG version if we're going to include the BANG headers.
@@ -753,6 +795,10 @@ BangToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
 
 }
 
+Tool *BangToolChain::buildBackendCompiler() const {
+  return new tools::MLISA::BackendCompiler(*this);
+}
+
 Tool *BangToolChain::buildAssembler() const {
   return new tools::MLISA::Assembler(*this);
 }
@@ -824,5 +870,6 @@ SanitizerMask BangToolChain::getSupportedSanitizers() const {
 //                                                const ArgList &Args) const {
 //   return HostTC.computeMSVCVersion(D, Args);
 // }
+
 
 

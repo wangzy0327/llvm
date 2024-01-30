@@ -1178,6 +1178,12 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
               continue;
             }
             UserTargetName = "amdgcn-amd-amdhsa";
+          } else if (auto Device = gen::isGPUTarget<gen::CambriconGPU>(Val)) {
+            if (Device->empty()) {
+              Diag(clang::diag::err_drv_invalid_sycl_target) << Val;
+              continue;
+            }
+            UserTargetName = "mlisa-cambricon-bang";
           }
 
           if (!isValidSYCLTriple(MakeSYCLDeviceTriple(UserTargetName))) {
@@ -6391,6 +6397,15 @@ class OffloadingActionBuilder final {
                   C.getDriver().MakeSYCLDeviceTriple("amdgcn-amd-amdhsa"),
                   ValidDevice->data());
               UserTargetName = "amdgcn-amd-amdhsa";
+            } else if (auto ValidDevice = gen::isGPUTarget<gen::CambriconGPU>(Val)) {
+              if (ValidDevice->empty())
+                // Unrecognized, we have already diagnosed this earlier; skip.
+                continue;
+              // Add the proper -device value to the list.
+              GpuArchList.emplace_back(
+                  C.getDriver().MakeSYCLDeviceTriple("mlisa-cambricon-bang"),
+                  ValidDevice->data());
+              UserTargetName = "mlisa-cambricon-bang";
             }
 
             llvm::Triple TT(C.getDriver().MakeSYCLDeviceTriple(Val));
@@ -9844,6 +9859,11 @@ const ToolChain &Driver::getOffloadingDeviceToolChain(const ArgList &Args,
                                                              HostTC, Args);
         break;
       }
+      case Action::OFK_BANG:{
+        TC = std::make_unique<toolchains::BangToolChain>(
+          *this, Target, HostTC, Args, TargetDeviceOffloadKind);
+        break;
+      }
       case Action::OFK_OpenMP:
         // omp + nvptx
         TC = std::make_unique<toolchains::CudaToolChain>(
@@ -9864,6 +9884,10 @@ const ToolChain &Driver::getOffloadingDeviceToolChain(const ArgList &Args,
           case llvm::Triple::amdgcn:
             TC = std::make_unique<toolchains::HIPAMDToolChain>(
                 *this, Target, HostTC, Args, TargetDeviceOffloadKind);
+            break;
+          case llvm::Triple::mlisa:
+            TC = std::make_unique<toolchains::BangToolChain>(
+              *this, Target, HostTC, Args, TargetDeviceOffloadKind);
             break;
           default:
           break;

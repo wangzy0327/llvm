@@ -20,6 +20,7 @@
 #include "Arch/VE.h"
 #include "Arch/X86.h"
 #include "HIPAMD.h"
+#include "ToolChains/Bang.h"
 #include "Hexagon.h"
 #include "MSP430.h"
 #include "clang/Basic/CharInfo.h"
@@ -554,6 +555,9 @@ void tools::getTargetFeatures(const Driver &D, const llvm::Triple &Triple,
   case llvm::Triple::nvptx64:
     NVPTX::getNVPTXTargetFeatures(D, Triple, Args, Features);
     break;
+  case llvm::Triple::mlisa:
+    MLISA::getMLISATargetFeatures(D, Triple, Args, Features);
+    break;    
   case llvm::Triple::m68k:
     m68k::getM68kTargetFeatures(D, Triple, Args, Features);
     break;

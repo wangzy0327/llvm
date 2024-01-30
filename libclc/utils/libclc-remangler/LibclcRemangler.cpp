@@ -912,6 +912,8 @@ private:
       M->setTargetTriple("nvptx64-nvidia-cuda");
     } else if (M->getTargetTriple() == "amdgcn-unknown-amdhsa") {
       M->setTargetTriple("amdgcn-amd-amdhsa");
+    } else if (M->getTargetTriple() == "mlisa-unknown-cambriconcl") {
+      M->setTargetTriple("mlisa-cambricon-bang");
     }
 
     std::vector<Function *> FuncList;

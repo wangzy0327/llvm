@@ -2305,7 +2305,7 @@ void GPUNodeBuilder::createKernelFunction(
   case GPUArch::SPIR64:
     GPUModule->setTargetTriple(Triple::normalize("spir64-unknown-unknown"));
     GPUModule->setDataLayout(computeSPIRDataLayout(true /* is64Bit */));
-    break;
+    break;  
   }
 
   Function *FN = createKernelFunctionDecl(Kernel, SubtreeValues);

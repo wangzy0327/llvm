@@ -22,7 +22,7 @@ def do_configure(args):
 
     libclc_amd_target_names = ';amdgcn--;amdgcn--amdhsa'
     libclc_nvidia_target_names = ';nvptx64--;nvptx64--nvidiacl'
-    libclc_cambricon_target_names = ';mlisa--;mlisa--cambriconcl'
+    libclc_cambricon_target_names = ';mlisa--cambriconcl'
 
     if args.llvm_external_projects:
         llvm_external_projects += ";" + args.llvm_external_projects.replace(",", ";")

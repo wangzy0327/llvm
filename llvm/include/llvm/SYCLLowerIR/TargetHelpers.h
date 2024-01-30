@@ -22,7 +22,7 @@ using namespace llvm;
 namespace llvm {
 namespace TargetHelpers {
 
-enum class ArchType { Cuda, AMDHSA, Unsupported };
+enum class ArchType { Cuda, AMDHSA, BANG, Unsupported };
 
 struct KernelPayload {
   KernelPayload(Function *Kernel, MDNode *MD = nullptr);
