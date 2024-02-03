@@ -1299,7 +1299,7 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
 
     const llvm::Triple &DeviceTriple = TI.getTriple();
     const llvm::Triple::SubArchType DeviceSubArch = DeviceTriple.getSubArch();
-    if (DeviceTriple.isNVPTX() ||
+    if (DeviceTriple.isNVPTX() || DeviceTriple.isAMDGCN() || DeviceTriple.isMLISA() ||
         (DeviceTriple.isSPIR() &&
          DeviceSubArch != llvm::Triple::SPIRSubArch_fpga))
       Builder.defineMacro("SYCL_USE_NATIVE_FP_ATOMICS");

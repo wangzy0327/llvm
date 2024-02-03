@@ -11,6 +11,8 @@ set(LLVM_LINK_COMPONENTS
   Analysis
   )
 
+message(STATUS "###### utils LLVM CMAKE PATH is "${LLVM_CMAKE_PATH})
+message(STATUS "###### utils CLANG CMAKE PATH is "${CLANG_CMAKE_PATH})
 add_llvm_executable( prepare_builtins
   prepare-builtins.cpp )
 

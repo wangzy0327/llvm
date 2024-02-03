@@ -12,12 +12,19 @@ set(CMAKE_MODULE_PATH
 # If we are not building as a part of LLVM, build libclc as an
 # standalone project, using LLVM/Clang as external tools.
 if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
+  message(STATUS "building libclc as a standalone project.")
+  set(LLVM_CMAKE_PATH "$ENV{DPCPP_HOME}/build-2022-12-mlu/lib/cmake/llvm")
   project( libclc VERSION 0.2.0 LANGUAGES CXX C )
 
   set( LIBCLC_STANDALONE_BUILD 1 )
 
   include(HandleOutOfTreeLLVM)
+  message(STATUS "trying to add AddLLVM sub module.")
+  message(STATUS "trying to add AddClang sub module.")
+  include(AddLLVM)
+  include(AddClang)
 else()
+  message(STATUS "building libclc as a part of llvm.")
   include(HandleInLLVMTree)
 endif()
 
@@ -34,8 +41,8 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
   ptx-nvidiacl/lib/SOURCES;
   r600/lib/SOURCES;
   spirv/lib/SOURCES;
-  spirv64/lib/SOURCES
-#   mlisa/lib/
+  spirv64/lib/SOURCES;
+  mlisa/lib/SOURCES
 )
 
 include( AddLibclc )
@@ -60,6 +67,7 @@ set( LIBCLC_TEST_TARGETS_ALL
   nvptx--nvidiacl
   nvptx64--nvidiacl
   amdgcn--amdhsa
+#   mlisa--cambriconcl
 )
 
 set( LIBCLC_ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR} )
@@ -87,10 +95,13 @@ endif()
 set(LIBCLC_TARGET_TO_TEST)
 
 foreach ( t ${LIBCLC_TEST_TARGETS_ALL})
+    message(STATUS "####### libclc test targets element : ${t}")
 	if( ${t} IN_LIST LIBCLC_TARGETS_TO_BUILD )
 		list( APPEND LIBCLC_TARGET_TO_TEST "${t}" )
 	endif( ${t} IN_LIST LIBCLC_TARGETS_TO_BUILD )
 endforeach(t)
+
+message(STATUS "####### LLVM_CONFIG is ${LLVM_CONFIG}")
 
 execute_process( COMMAND ${LLVM_CONFIG} "--system-libs"
 	OUTPUT_VARIABLE LLVM_SYSTEM_LIBS
@@ -274,6 +285,10 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 		set( DARCH ptx )
 	else()
 		set( DARCH ${ARCH} )
+	endif()
+
+	if( ${ARCH} STREQUAL mlisa)
+		list( APPEND dirs mlisa )
 	endif()
 
 	set( lib_files )

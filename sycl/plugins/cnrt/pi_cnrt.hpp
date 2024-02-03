@@ -693,10 +693,9 @@ public:
 
   // construct a native CNRT. This maps closely to the underlying CNRT event.
   static pi_event
-  make_native(pi_command_type type, pi_queue queue, CNqueue stream,
+  make_native(pi_command_type type, pi_queue queue,
               pi_uint32 stream_token = std::numeric_limits<pi_uint32>::max()) {
-    return new _pi_event(type, queue->get_context(), queue, stream,
-                         stream_token);
+    return new _pi_event(type, queue->get_context(), queue);
   }
 
   static pi_event make_with_native(pi_context context, CNnotifier eventNative) {
@@ -710,8 +709,7 @@ public:
 private:
   // This constructor is private to force programmers to use the make_native /
   // make_user static members in order to create a pi_event for CNRT.
-  _pi_event(pi_command_type type, pi_context context, pi_queue queue,
-            CNqueue stream, pi_uint32 stream_token);
+  _pi_event(pi_command_type type, pi_context context, pi_queue queue);
 
   // This constructor is private to force programmers to use the
   // make_with_native for event introp

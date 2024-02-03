@@ -27,4 +27,12 @@ macro(configure_in_llvm_tree)
   set(CMAKE_LLAsm_COMPILER_FORCED TRUE)
 endmacro(configure_in_llvm_tree)
 
+if (LLVM_CMAKE_PATH AND NOT CLANG_CMAKE_PATH)
+  get_filename_component(CLANG_CMAKE_PATH "${LLVM_CMAKE_PATH}" PATH)
+  set(CLANG_CMAKE_PATH "${CLANG_CMAKE_PATH}/clang")
+endif()
+
+message(STATUS "######### LLVM CMAKE PATH is" ${LLVM_CMAKE_PATH})
+message(STATUS "######### CLANG CMAKE PATH is" ${CLANG_CMAKE_PATH})
+
 configure_in_llvm_tree()

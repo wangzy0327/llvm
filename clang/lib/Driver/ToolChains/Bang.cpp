@@ -326,6 +326,7 @@ void MLISA::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
 
   // Obtain architecture from the action.
   CudaArch mlu_arch = StringToCudaArch(GPUArchName);
+  llvm::outs()<<"=========mlisa Assembler mlu_arch is "<<CudaArchToString(mlu_arch)<<"===========\n";
   assert(mlu_arch != CudaArch::UNKNOWN &&
          "Device action expected to have an architecture.");
 
@@ -370,6 +371,7 @@ void MLISA::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
   if (DIKind == DebugDirectivesOnly)
     CmdArgs.push_back("-lineinfo");
 
+  llvm::outs()<<"=============== MLISA::Assembler get NormalizedTriple  ============\n";
   std::string NormalizedTriple =
     C.getSingleOffloadToolChain<Action::OFK_Host>()->getTriple().normalize();
   CmdArgs.push_back("--mcpu");
@@ -498,6 +500,7 @@ void MLISA::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back(Args.MakeArgString("--device-only"));
   }
 
+  llvm::outs()<<"=============== MLISA::Linker get NormalizedTriple  ============\n";
   std::string NormalizedTriple =
     C.getSingleOffloadToolChain<Action::OFK_Host>()->getTriple().normalize();
 
@@ -574,7 +577,7 @@ std::string BangToolChain::getInputFilename(const InputInfo &Input) const {
 
 // Select remangled libclc variant. 64-bit longs default
 static const char *getLibSpirvTargetName(const ToolChain &HostTC) {
-  return "libspirv-mlisa-cambricon-bang.bc";
+  return "remangled-l64-signed_char.libspirv-mlisa-cambricon-bang.bc";
 }
 
 void BangToolChain::addClangTargetOptions(

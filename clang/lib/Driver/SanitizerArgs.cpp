@@ -1091,7 +1091,8 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
   if (TC.getTriple().isNVPTX() ||
       (TC.getTriple().isAMDGPU() &&
        !Args.hasFlag(options::OPT_fgpu_sanitize, options::OPT_fno_gpu_sanitize,
-                     true)))
+                     true)) ||
+                     TC.getTriple().isMLISA())
     return;
 
   // Translate available CoverageFeatures to corresponding clang-cc1 flags.

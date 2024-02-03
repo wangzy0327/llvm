@@ -484,12 +484,11 @@ CNqueue _pi_queue::get_next_transfer_stream() {
   return res;
 }
 
-_pi_event::_pi_event(pi_command_type type, pi_context context, pi_queue queue,
-                     CNqueue stream, pi_uint32 stream_token)
+_pi_event::_pi_event(pi_command_type type, pi_context context, pi_queue queue)
     : commandType_{type}, refCount_{1}, has_ownership_{true},
       hasBeenWaitedOn_{false}, isRecorded_{false}, isStarted_{false},
-      streamToken_{stream_token}, evEnd_{nullptr}, evStart_{nullptr},
-      evQueued_{nullptr}, queue_{queue}, stream_{stream}, context_{context} {
+      evEnd_{nullptr}, evStart_{nullptr},
+      evQueued_{nullptr}, queue_{queue}, context_{context} {
 
   bool profilingEnabled = queue_->properties_ & PI_QUEUE_FLAG_PROFILING_ENABLE;
 
@@ -2727,7 +2726,7 @@ pi_result cnrt_piEnqueueMemBufferWrite(pi_queue command_queue, pi_mem buffer,
 
     if (event) {
       retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
-          PI_COMMAND_TYPE_MEM_BUFFER_WRITE, command_queue, cnStream));
+          PI_COMMAND_TYPE_MEM_BUFFER_WRITE, command_queue));
       retImplEv->start();
     }
 
@@ -2761,24 +2760,26 @@ pi_result cnrt_piEnqueueMemBufferRead(pi_queue command_queue, pi_mem buffer,
   assert(buffer != nullptr);
   assert(command_queue != nullptr);
   pi_result retErr = PI_SUCCESS;
+  CNqueue cnStream = command_queue->get();
   CNaddr devPtr = buffer->mem_.buffer_mem_.get();
   std::unique_ptr<_pi_event> retImplEv{nullptr};
 
   try {
     ScopedContext active(command_queue->get_context());
-    CNqueue cnStream = command_queue->get_next_transfer_stream();
 
-    retErr = enqueueEventsWait(command_queue, cnStream, num_events_in_wait_list,
-                               event_wait_list);
+    retErr = cnrt_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
+                               event_wait_list, nullptr);
 
     if (event) {
       retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
-          PI_COMMAND_TYPE_MEM_BUFFER_READ, command_queue, cnStream));
+          PI_COMMAND_TYPE_MEM_BUFFER_READ, command_queue));
       retImplEv->start();
     }
 
     retErr =
-        PI_CHECK_ERROR(cnMemcpyDtoHAsync(ptr, devPtr + offset, size, cnStream));
+        PI_CHECK_ERROR(cnMemcpyDtoH(ptr, devPtr + offset, size));
+    // retErr =
+    //     PI_CHECK_ERROR(cnMemcpyDtoHAsync(ptr, devPtr + offset, size, cnStream));        
 
     if (event) {
       retErr = retImplEv->record();
@@ -3070,8 +3071,7 @@ pi_result cnrt_piEnqueueKernelLaunch(
 
     if (event) {
       retImplEv = std::unique_ptr<_pi_event>(
-          _pi_event::make_native(PI_COMMAND_TYPE_NDRANGE_KERNEL, command_queue,
-                                 cnStream, stream_token));
+          _pi_event::make_native(PI_COMMAND_TYPE_NDRANGE_KERNEL, command_queue));
       retImplEv->start();
     }
 
@@ -3717,8 +3717,7 @@ pi_result cnrt_piEnqueueEventsWaitWithBarrier(pi_queue command_queue,
     }
 
     if (event) {
-      *event = _pi_event::make_native(PI_COMMAND_TYPE_MARKER, command_queue,
-                                      cnStream, stream_token);
+      *event = _pi_event::make_native(PI_COMMAND_TYPE_MARKER, command_queue);
       (*event)->start();
       (*event)->record();
     }
@@ -3972,7 +3971,7 @@ pi_result cnrt_piEnqueueMemBufferReadRect(
 
     if (event) {
       retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
-          PI_COMMAND_TYPE_MEM_BUFFER_READ_RECT, command_queue, cnStream));
+          PI_COMMAND_TYPE_MEM_BUFFER_READ_RECT, command_queue));
       retImplEv->start();
     }
 
@@ -4022,7 +4021,7 @@ pi_result cnrt_piEnqueueMemBufferWriteRect(
 
     if (event) {
       retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
-          PI_COMMAND_TYPE_MEM_BUFFER_WRITE_RECT, command_queue, cnStream));
+          PI_COMMAND_TYPE_MEM_BUFFER_WRITE_RECT, command_queue));
       retImplEv->start();
     }
 
@@ -4071,7 +4070,7 @@ pi_result cnrt_piEnqueueMemBufferCopy(pi_queue command_queue, pi_mem src_buffer,
 
     if (event) {
       retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
-          PI_COMMAND_TYPE_MEM_BUFFER_COPY, command_queue, stream));
+          PI_COMMAND_TYPE_MEM_BUFFER_COPY, command_queue));
       result = retImplEv->start();
     }
 
@@ -4118,7 +4117,7 @@ pi_result cnrt_piEnqueueMemBufferCopyRect(
 
     if (event) {
       retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
-          PI_COMMAND_TYPE_MEM_BUFFER_COPY_RECT, command_queue, cnStream));
+          PI_COMMAND_TYPE_MEM_BUFFER_COPY_RECT, command_queue));
       retImplEv->start();
     }
 
@@ -4173,7 +4172,7 @@ pi_result cnrt_piEnqueueMemBufferFill(pi_queue command_queue, pi_mem buffer,
 
     if (event) {
       retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
-          PI_COMMAND_TYPE_MEM_BUFFER_FILL, command_queue, stream));
+          PI_COMMAND_TYPE_MEM_BUFFER_FILL, command_queue));
       result = retImplEv->start();
     }
 
@@ -4359,8 +4358,7 @@ pi_result cnrt_piEnqueueMemBufferMap(pi_queue command_queue, pi_mem buffer,
     if (event) {
       try {
         *event = _pi_event::make_native(
-            PI_COMMAND_TYPE_MEM_BUFFER_MAP, command_queue,
-            command_queue->get_next_transfer_stream());
+            PI_COMMAND_TYPE_MEM_BUFFER_MAP, command_queue);
         (*event)->start();
         (*event)->record();
       } catch (pi_result error) {
@@ -4414,8 +4412,7 @@ pi_result cnrt_piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
     if (event) {
       try {
         *event = _pi_event::make_native(
-            PI_COMMAND_TYPE_MEM_BUFFER_UNMAP, command_queue,
-            command_queue->get_next_transfer_stream());
+            PI_COMMAND_TYPE_MEM_BUFFER_UNMAP, command_queue);
         (*event)->start();
         (*event)->record();
       } catch (pi_result error) {
@@ -4519,7 +4516,7 @@ pi_result cnrt_piextUSMEnqueueMemset(pi_queue queue, void *ptr, pi_int32 value,
                                events_waitlist);
     if (event) {
       event_ptr = std::unique_ptr<_pi_event>(_pi_event::make_native(
-          PI_COMMAND_TYPE_MEM_BUFFER_FILL, queue, cnStream, stream_token));
+          PI_COMMAND_TYPE_MEM_BUFFER_FILL, queue));
       event_ptr->start();
     }
     result = PI_CHECK_ERROR(cnMemsetD8Async(
@@ -4554,7 +4551,7 @@ pi_result cnrt_piextUSMEnqueueMemcpy(pi_queue queue, pi_bool blocking,
                                events_waitlist);
     if (event) {
       event_ptr = std::unique_ptr<_pi_event>(_pi_event::make_native(
-          PI_COMMAND_TYPE_MEM_BUFFER_COPY, queue, cnStream));
+          PI_COMMAND_TYPE_MEM_BUFFER_COPY, queue));
       event_ptr->start();
     }
     result = PI_CHECK_ERROR(cnMemcpyAsync(

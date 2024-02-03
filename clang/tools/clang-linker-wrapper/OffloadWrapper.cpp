@@ -620,3 +620,13 @@ Error wrapHIPBinary(Module &M, ArrayRef<char> Image) {
   createRegisterFatbinFunction(M, Desc, /* IsHIP */ true);
   return Error::success();
 }
+
+Error wrapBANGBinary(Module &M, ArrayRef<char> Image) {
+  GlobalVariable *Desc = createFatbinDesc(M, Image, /* IsBANG */ false);
+  if (!Desc)
+    return createStringError(inconvertibleErrorCode(),
+                             "No fatinbary section created.");
+
+  createRegisterFatbinFunction(M, Desc, /* IsBANG */ false);
+  return Error::success();
+}

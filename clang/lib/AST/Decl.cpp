@@ -839,7 +839,8 @@ LinkageComputer::getLVForNamespaceScopeDecl(const NamedDecl *D,
     // functions as the host-callable kernel functions are emitted at codegen.
     if (Context.getLangOpts().OpenMP && Context.getLangOpts().OpenMPIsDevice &&
         ((Context.getTargetInfo().getTriple().isAMDGPU() ||
-          Context.getTargetInfo().getTriple().isNVPTX()) ||
+          Context.getTargetInfo().getTriple().isNVPTX() ||
+          Context.getTargetInfo().getTriple().isMLISA()) ||
          OMPDeclareTargetDeclAttr::isDeclareTargetDeclaration(Function)))
       LV.mergeVisibility(HiddenVisibility, /*newExplicit=*/false);
 

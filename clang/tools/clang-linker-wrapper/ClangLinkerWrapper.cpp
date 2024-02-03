@@ -388,6 +388,130 @@ fatbinary(ArrayRef<std::pair<StringRef, StringRef>> InputFiles,
 }
 } // namespace nvptx
 
+namespace mlisa {
+Expected<StringRef> assemble(StringRef InputFile, const ArgList &Args,
+                             bool RDC = true) {
+  llvm::TimeTraceScope TimeScope("MLISA Assembler");
+  // CNAS uses the cnas binary to create device object files.
+  Expected<std::string> CnasPath = findProgram("cnas", {CudaBinaryPath});
+  if (!CnasPath)
+    return CnasPath.takeError();
+
+  const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
+  StringRef Arch = Args.getLastArgValue(OPT_arch_EQ);
+  // Create a new file to write the linked device image to. Assume that the
+  // input filename already has the device and architecture.
+  auto TempFileOrErr = createOutputFile(sys::path::stem(InputFile), "cnfatbin");
+  if (!TempFileOrErr)
+    return TempFileOrErr.takeError();
+
+  SmallVector<StringRef, 16> CmdArgs;
+  StringRef OptLevel = Args.getLastArgValue(OPT_opt_level, "O2");
+  CmdArgs.push_back(*CnasPath);
+  if (Verbose)
+    CmdArgs.push_back("-v");
+  CmdArgs.push_back("-o");
+  CmdArgs.push_back(*TempFileOrErr);
+  CmdArgs.push_back(Args.MakeArgString("-" + OptLevel));
+  CmdArgs.push_back("--mlu-arch");
+  CmdArgs.push_back(Arch);
+  if (Args.hasArg(OPT_debug) && OptLevel[1] == '0')
+    CmdArgs.push_back("-g");
+  else if (Args.hasArg(OPT_debug))
+    CmdArgs.push_back("-lineinfo");
+  if (RDC)
+    CmdArgs.push_back("-c");
+
+  CmdArgs.push_back(InputFile);
+
+  if (Error Err = executeCommands(*CnasPath, CmdArgs))
+    return std::move(Err);
+
+  return *TempFileOrErr;
+}
+
+Expected<StringRef> link(ArrayRef<StringRef> InputFiles, const ArgList &Args) {
+  llvm::TimeTraceScope TimeScope("MLISA linker");
+  // MLISA uses the cncc binary to link device object files.
+  Expected<std::string> CNlinkPath = findProgram("cncc", {CudaBinaryPath});
+  if (!CNlinkPath)
+    return CNlinkPath.takeError();
+
+  const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
+  StringRef Arch = Args.getLastArgValue(OPT_arch_EQ);
+
+  // Create a new file to write the linked device image to.
+  auto TempFileOrErr =
+      createOutputFile(sys::path::filename(ExecutableName) + "-device-" +
+                           Triple.getArchName() + "-" + Arch,
+                       "out");
+  if (!TempFileOrErr)
+    return TempFileOrErr.takeError();
+
+  SmallVector<StringRef, 16> CmdArgs;
+  CmdArgs.push_back(*CNlinkPath);
+  if (Args.hasArg(OPT_debug))
+    CmdArgs.push_back("-g");
+  if (Verbose)
+    CmdArgs.push_back("-v");
+  CmdArgs.push_back("-o");
+  CmdArgs.push_back(*TempFileOrErr);
+  CmdArgs.push_back("-aux-triple");
+  CmdArgs.push_back("mlisa-cambricon-bang");
+  CmdArgs.push_back("-aux-triple-cpu");
+  CmdArgs.push_back(Arch);
+  CmdArgs.push_back("-emit-obj");
+  CmdArgs.push_back("-faddrsig");
+
+  CmdArgs.push_back("-fbang-include-mlubinary");
+
+  // Add extracted input files.
+  for (StringRef Input : InputFiles)
+    CmdArgs.push_back(Input);
+
+  for (StringRef Arg : Args.getAllArgValues(OPT_linker_arg_EQ))
+    CmdArgs.push_back(Args.MakeArgString(Arg));
+  if (Error Err = executeCommands(*CNlinkPath, CmdArgs))
+    return std::move(Err);
+
+  return *TempFileOrErr;
+}
+
+// Expected<StringRef>
+// fatbinary(ArrayRef<std::pair<StringRef, StringRef>> InputFiles,
+//           const ArgList &Args) {
+//   llvm::TimeTraceScope TimeScope("MLISA fatbinary");
+//   // NVPTX uses the fatbinary program to bundle the linked images.
+//   Expected<std::string> FatBinaryPath =
+//       findProgram("fatbinary", {CudaBinaryPath});
+//   if (!FatBinaryPath)
+//     return FatBinaryPath.takeError();
+
+//   llvm::Triple Triple(
+//       Args.getLastArgValue(OPT_host_triple_EQ, sys::getDefaultTargetTriple()));
+
+//   // Create a new file to write the linked device image to.
+//   auto TempFileOrErr = createOutputFile(
+//       sys::path::filename(ExecutableName) + "-device", "fatbin");
+//   if (!TempFileOrErr)
+//     return TempFileOrErr.takeError();
+
+//   SmallVector<StringRef, 16> CmdArgs;
+//   CmdArgs.push_back(*FatBinaryPath);
+//   CmdArgs.push_back(Triple.isArch64Bit() ? "-64" : "-32");
+//   CmdArgs.push_back("--create");
+//   CmdArgs.push_back(*TempFileOrErr);
+//   for (const auto &[File, Arch] : InputFiles)
+//     CmdArgs.push_back(
+//         Args.MakeArgString("--image=profile=" + Arch + ",file=" + File));
+
+//   if (Error Err = executeCommands(*FatBinaryPath, CmdArgs))
+//     return std::move(Err);
+
+//   return *TempFileOrErr;
+// }
+} // namespace mlisa
+
 namespace amdgcn {
 Expected<StringRef> link(ArrayRef<StringRef> InputFiles, const ArgList &Args) {
   llvm::TimeTraceScope TimeScope("AMDGPU linker");
@@ -994,6 +1118,10 @@ wrapDeviceImages(ArrayRef<std::unique_ptr<MemoryBuffer>> Buffers,
     if (Error Err = wrapHIPBinary(M, BuffersToWrap.front()))
       return std::move(Err);
     break;
+  case OFK_BANG:
+    if (Error Err = wrapBANGBinary(M, BuffersToWrap.front()))
+      return std::move(Err);
+    break;    
   default:
     return createStringError(inconvertibleErrorCode(),
                              getOffloadKindName(Kind) +
@@ -1064,6 +1192,29 @@ bundleHIP(ArrayRef<OffloadingImage> Images, const ArgList &Args) {
   return std::move(Buffers);
 }
 
+Expected<SmallVector<std::unique_ptr<MemoryBuffer>>>
+bundleBANG(ArrayRef<OffloadingImage> Images, const ArgList &Args) {
+  SmallVector<std::pair<StringRef, StringRef>, 4> InputFiles;
+  for (const OffloadingImage &Image : Images)
+    InputFiles.emplace_back(std::make_pair(Image.Image->getBufferIdentifier(),
+                                           Image.StringData.lookup("arch")));
+
+  Triple TheTriple = Triple(Images.front().StringData.lookup("triple"));
+  auto FileOrErr = nvptx::fatbinary(InputFiles, Args);
+  if (!FileOrErr)
+    return FileOrErr.takeError();
+
+  llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> ImageOrError =
+      llvm::MemoryBuffer::getFileOrSTDIN(*FileOrErr);
+
+  SmallVector<std::unique_ptr<MemoryBuffer>> Buffers;
+  if (std::error_code EC = ImageOrError.getError())
+    return createFileError(*FileOrErr, EC);
+  Buffers.emplace_back(std::move(*ImageOrError));
+
+  return std::move(Buffers);
+}
+
 /// Transforms the input \p Images into the binary format the runtime expects
 /// for the given \p Kind.
 Expected<SmallVector<std::unique_ptr<MemoryBuffer>>>
@@ -1077,6 +1228,8 @@ bundleLinkedOutput(ArrayRef<OffloadingImage> Images, const ArgList &Args,
     return bundleCuda(Images, Args);
   case OFK_HIP:
     return bundleHIP(Images, Args);
+  case OFK_BANG:
+    return bundleBANG(Images, Args);    
   default:
     return createStringError(inconvertibleErrorCode(),
                              getOffloadKindName(Kind) +
@@ -1175,7 +1328,7 @@ linkAndWrapDeviceFiles(SmallVectorImpl<OffloadFile> &LinkerInputFiles,
     llvm::Triple Triple(LinkerArgs.getLastArgValue(OPT_triple_EQ));
     bool RequiresLinking =
         !Args.hasArg(OPT_embed_bitcode) &&
-        !(Input.empty() && InputFiles.size() == 1 && Triple.isNVPTX());
+        !(Input.empty() && InputFiles.size() == 1 && (Triple.isNVPTX() || Triple.isMLISA()));
     auto OutputOrErr = RequiresLinking ? linkDevice(InputFiles, LinkerArgs)
                                        : InputFiles.front();
     if (!OutputOrErr)

@@ -2785,7 +2785,7 @@ void CGOpenMPRuntime::emitDistributeStaticInit(
   llvm::FunctionCallee StaticInitFunction;
   bool isGPUDistribute =
       CGM.getLangOpts().OpenMPIsDevice &&
-      (CGM.getTriple().isAMDGCN() || CGM.getTriple().isNVPTX());
+      (CGM.getTriple().isAMDGCN() || CGM.getTriple().isNVPTX() || CGM.getTriple().isMLISA());
   StaticInitFunction = createForStaticInitFunction(
       Values.IVSize, Values.IVSigned, isGPUDistribute);
 

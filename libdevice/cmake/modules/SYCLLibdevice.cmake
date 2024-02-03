@@ -54,13 +54,13 @@ if ("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
     "-nocudalib")
 endif()
 
-if ("MLISA" IN_LIST LLVM_TARGETS_TO_BUILD)
-  string(APPEND sycl_targets_opt ",mlisa-cambricon-bang")
-  list(APPEND compile_opts
-    "-fno-sycl-libspirv"
-    "-fno-bundle-offload-arch"
-    "-noneuwarelib")
-endif()
+# if ("MLISA" IN_LIST LLVM_TARGETS_TO_BUILD)
+#   string(APPEND sycl_targets_opt ",mlisa-cambricon-bang")
+#   list(APPEND compile_opts
+#     "-fno-sycl-libspirv"
+#     "-fno-bundle-offload-arch"
+#     "-noneuwarelib")
+# endif()
 
 if (WIN32)
   list(APPEND compile_opts -D_ALLOW_RUNTIME_LIBRARY_MISMATCH)

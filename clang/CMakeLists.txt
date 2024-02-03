@@ -142,6 +142,11 @@ if(CLANG_BUILT_STANDALONE)
   endif() # LLVM_INCLUDE_TESTS
 endif() # standalone
 
+message(STATUS "##### ================== starting ==========")
+message(STATUS "##### CMAKE CFG INTDIR is  ${CMAKE_CFG_INTDIR}")
+message(STATUS "##### CMAKE BINARY DIR is  ${CMAKE_BINARY_DIR}")
+message(STATUS "##### LLVM_LIBDIR_SUFFIX is  ${LLVM_LIBDIR_SUFFIX}")
+
 # Make sure that our source directory is on the current cmake module path so that
 # we can include cmake files from this directory.
 list(INSERT CMAKE_MODULE_PATH 0
@@ -315,6 +320,9 @@ mark_as_advanced(CLANG_TOOLS_INSTALL_DIR)
 
 set(CLANG_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(CLANG_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
+
+message(STATUS "######## Clang Current Source DIR is ${CMAKE_CURRENT_SOURCE_DIR}")
+message(STATUS "######## Clang Current Binary DIR is ${CMAKE_CURRENT_BINARY_DIR}")
 
 if( CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR AND NOT MSVC_IDE )
   message(FATAL_ERROR "In-source builds are not allowed. "

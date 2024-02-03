@@ -302,6 +302,7 @@ OffloadKind object::getOffloadKind(StringRef Name) {
       .Case("openmp", OFK_OpenMP)
       .Case("cuda", OFK_Cuda)
       .Case("hip", OFK_HIP)
+      .Case("bang", OFK_BANG)
       .Default(OFK_None);
 }
 
@@ -313,6 +314,8 @@ StringRef object::getOffloadKindName(OffloadKind Kind) {
     return "cuda";
   case OFK_HIP:
     return "hip";
+  case OFK_BANG:
+    return "bang";    
   default:
     return "none";
   }

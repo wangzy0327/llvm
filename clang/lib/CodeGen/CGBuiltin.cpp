@@ -5141,13 +5141,16 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
   }
   case Builtin::BIprintf:
     if (getTarget().getTriple().isNVPTX() ||
-        getTarget().getTriple().isAMDGCN()) {
+        getTarget().getTriple().isAMDGCN() ||
+        getTarget().getTriple().isMLISA()) {
       if (getLangOpts().OpenMPIsDevice)
         return EmitOpenMPDevicePrintfCallExpr(E);
       if (getTarget().getTriple().isNVPTX())
         return EmitNVPTXDevicePrintfCallExpr(E);
       if (getTarget().getTriple().isAMDGCN() && getLangOpts().HIP)
         return EmitAMDGPUDevicePrintfCallExpr(E);
+      if (getTarget().getTriple().isMLISA())
+        return EmitMLISADevicePrintfCallExpr(E);        
     }
 
     break;

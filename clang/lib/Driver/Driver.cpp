@@ -119,6 +119,9 @@ static std::optional<llvm::Triple> getOffloadTargetTriple(const Driver &D,
   // Offload compilation flow does not support multiple targets for now. We
   // need the HIPActionBuilder (and possibly the CudaActionBuilder{,Base}too)
   // to support multiple tool chains first.
+  for(auto targetName : OffloadTargets){
+    llvm::outs()<<"======== getOffloadTargetTriple is "<<targetName<<" ============\n";
+  }
   switch (OffloadTargets.size()) {
   default:
     D.Diag(diag::err_drv_only_one_offload_target_supported);
@@ -842,12 +845,16 @@ static bool addSYCLDefaultTriple(Compilation &C,
         SYCLTriple.isSPIR())
       return false;
     // If we encounter a known non-spir* target, do not add the default triple.
-    if (SYCLTriple.isNVPTX() || SYCLTriple.isAMDGCN())
+    if (SYCLTriple.isNVPTX() || SYCLTriple.isAMDGCN() || SYCLTriple.isMLISA())
       return false;
   }
   // Add the default triple as it was not found.
   llvm::Triple DefaultTriple =
       C.getDriver().MakeSYCLDeviceTriple(getDefaultSYCLArch(C));
+  
+  
+  llvm::outs()<<"##### addSYCLDefaultTriple SYCL Default Triple is : "<<DefaultTriple.getArch()<<"\n";
+        
   SYCLTriples.insert(SYCLTriples.begin(), DefaultTriple);
   return true;
 }
@@ -910,21 +917,20 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     assert(HIPTC && "Could not create offloading device tool chain.");
     C.addOffloadDeviceToolChain(HIPTC, OFK);
   }else if(IsCN){
-    if (auto *OMPTargetArg =
-            C.getInputArgs().getLastArg(options::OPT_fopenmp_targets_EQ)) {
-      Diag(clang::diag::err_drv_unsupported_opt_for_language_mode)
-          << OMPTargetArg->getSpelling() << "CN";
-      return;
-    }
     const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
+    // const llvm::Triple &HostTriple = HostTC->getTriple();
     auto OFK = Action::OFK_BANG;
-    auto CNTriple = getCNOffloadTargetTriple(*this, C.getInputArgs());
+    auto CNTriple =
+        getCNOffloadTargetTriple(*this, C.getInputArgs());
     if (!CNTriple)
       return;
-    auto *CNTC = &getOffloadingDeviceToolChain(C.getInputArgs(), *CNTriple,
+    // Use the CN and host triples as the key into the
+    // getOffloadingDeviceToolChain, because the device toolchain we
+    // create depends on both.
+    auto CNTC = &getOffloadingDeviceToolChain(C.getInputArgs(), *CNTriple,
                                                 *HostTC, OFK);
-    assert(CNTC && "Could not create offloading device tool chain.");
-    C.addOffloadDeviceToolChain(CNTC, OFK);
+    assert(CNTC && "Could not create offloading device tool chain.");                                                
+    C.addOffloadDeviceToolChain(CNTC, OFK);    
   }
 
   //
@@ -938,6 +944,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       (C.getInputArgs().hasArg(options::OPT_fopenmp_targets_EQ) ||
        C.getInputArgs().hasArg(options::OPT_offload_arch_EQ));
   if (IsOpenMPOffloading) {
+    llvm::outs()<<"==========in openMP Offloading==============="<<"\n";
     // We expect that -fopenmp-targets is always used in conjunction with the
     // option -fopenmp specifying a valid runtime with offloading support, i.e.
     // libomp or libiomp.
@@ -966,7 +973,6 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
                !IsHIP && !IsCuda) {
       const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
       auto AMDTriple = getHIPOffloadTargetTriple(*this, C.getInputArgs());
-      auto CNTriple = getCNOffloadTargetTriple(*this, C.getInputArgs());
       auto NVPTXTriple = getNVIDIAOffloadTargetTriple(*this, C.getInputArgs(),
                                                       HostTC->getTriple());
 
@@ -982,7 +988,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
                    IsAMDGpuArch(StringToCudaArch(
                        getProcessorFromTargetID(*AMDTriple, Arch)))) {
           DerivedArchs[AMDTriple->getTriple()].insert(Arch);
-        } else {
+        }else {
           Diag(clang::diag::err_drv_failed_to_deduce_target_from_arch) << Arch;
           return;
         }
@@ -1291,7 +1297,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   // warnings.
   if (C.getInputArgs().hasArg(options::OPT_fno_sycl_libspirv)) {
     for (auto &TT : UniqueSYCLTriplesVec) {
-      if (TT.isNVPTX() || TT.isAMDGCN()) {
+      if (TT.isNVPTX() || TT.isAMDGCN() || TT.isMLISA()) {
         Diag(diag::warn_flag_no_sycl_libspirv) << TT.getTriple();
       } else {
         Diag(diag::warn_drv_unsupported_option_for_target)
@@ -1574,7 +1580,9 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
   if (IsCLMode() && !ContainsError) {
     SmallVector<const char *, 16> CLModePassThroughArgList;
     for (const auto *A : Args.filtered(options::OPT__SLASH_clang)) {
+      llvm::outs()<<"Clang Driver BuildCompilation CLModePassArgList : "<<A->getValue()<<"\n";
       A->claim();
+      llvm::outs()<<"Clang Driver BuildCompilation CLModePassArgList isClaimed : "<<A->isClaimed()<<"\n";
       CLModePassThroughArgList.push_back(A->getValue());
     }
 
@@ -3859,6 +3867,7 @@ class OffloadingActionBuilder final {
         // this input.
         if (!(IA->getType() == types::TY_CUDA ||
               IA->getType() == types::TY_HIP ||
+              IA->getType() == types::TY_CN ||
               IA->getType() == types::TY_PP_HIP)) {
           // The builder will ignore this input.
           IsActive = false;
@@ -3872,8 +3881,17 @@ class OffloadingActionBuilder final {
           return ABRT_Success;
 
         // Replicate inputs for each GPU architecture.
-        auto Ty = IA->getType() == types::TY_HIP ? types::TY_HIP_DEVICE
-                                                 : types::TY_CUDA_DEVICE;
+        // auto Ty = IA->getType() == types::TY_HIP ? types::TY_HIP_DEVICE
+        //                                          : types::TY_CUDA_DEVICE;
+        types::ID Ty;
+        if(IA->getType() == types::TY_HIP){
+          Ty = types::TY_HIP_DEVICE;
+        }else if(IA->getType() == types::TY_CUDA){
+          Ty = types::TY_CUDA_DEVICE;
+        }else{
+          //IA->getType() == types::TY_CN
+          Ty = types::TY_CN_DEVICE;
+        }
         std::string CUID = FixedCUID.str();
         if (CUID.empty()) {
           if (UseCUID == CUID_Random)
@@ -4521,20 +4539,13 @@ class OffloadingActionBuilder final {
 
     bool canUseBundlerUnbundler() const override { return true; }
 
-    StringRef getCanonicalOffloadArch(StringRef IdStr) override {
-      llvm::StringMap<bool> Features;
-      // getCNOffloadTargetTriple() is known to return valid value as it has
-      // been called successfully in the CreateOffloadingDeviceToolChains().
-      auto ArchStr = parseTargetID(
-          *getCNOffloadTargetTriple(C.getDriver(), C.getInputArgs()), IdStr,
-          &Features);
-      if (!ArchStr) {
-        C.getDriver().Diag(clang::diag::err_drv_bad_target_id) << IdStr;
-        C.setContainsError();
+    StringRef getCanonicalOffloadArch(StringRef ArchStr) override {
+      CudaArch Arch = StringToCudaArch(ArchStr);
+      if (Arch == CudaArch::UNKNOWN || !IsMLISAArch(Arch)) {
+        C.getDriver().Diag(clang::diag::err_drv_bang_bad_gpu_arch) << ArchStr;
         return StringRef();
       }
-      auto CanId = getCanonicalTargetID(*ArchStr, Features);
-      return Args.MakeArgStringRef(CanId);
+      return CudaArchToString(Arch);
     };
 
     std::optional<std::pair<llvm::StringRef, llvm::StringRef>>
@@ -4550,84 +4561,72 @@ class OffloadingActionBuilder final {
       if (!IsActive)
         return ABRT_Inactive;
 
-      // amdgcn does not support linking of object files, therefore we skip
-      // backend and assemble phases to output LLVM IR. Except for generating
-      // non-relocatable device code, where we generate fat binary for device
-      // code and pass to host in Backend phase.
+      // If we don't have more CUDA actions, we don't have any dependences to
+      // create for the host.
       if (CudaDeviceActions.empty())
         return ABRT_Success;
 
-      assert(((CurPhase == phases::Link && Relocatable) ||
-              CudaDeviceActions.size() == GpuArchList.size()) &&
+      assert(CudaDeviceActions.size() == GpuArchList.size() &&
              "Expecting one action per GPU architecture.");
       assert(!CompileHostOnly &&
              "Not expecting CN actions in host-only compilation.");
 
-      if (!Relocatable && CurPhase == phases::Backend && !EmitLLVM &&
-          !EmitAsm) {
-        // If we are in backend phase, we attempt to generate the fat binary.
-        // We compile each arch to IR and use a link action to generate code
-        // object containing ISA. Then we use a special "link" action to create
-        // a fat binary containing all the code objects for different GPU's.
-        // The fat binary is then an input to the host action.
+      // If we are generating code for the device or we are in a backend phase,
+      // we attempt to generate the fat binary. We compile each arch to ptx and
+      // assemble to cnfatbin, then feed the cubin *and* the ptx into a device
+      // "link" action, which uses fatbinary to combine these cubins into one
+      // fatbin.  The fatbin is then an input to the host action if not in
+      // device-only mode.
+      if (CompileDeviceOnly || CurPhase == phases::Backend) {
+        ActionList DeviceActions;
         for (unsigned I = 0, E = GpuArchList.size(); I != E; ++I) {
-          if (C.getDriver().isUsingLTO(/*IsOffload=*/true)) {
-            // When LTO is enabled, skip the backend and assemble phases and
-            // use lld to link the bitcode.
-            ActionList AL;
-            AL.push_back(CudaDeviceActions[I]);
-            // Create a link action to link device IR with device library
-            // and generate ISA.
-            CudaDeviceActions[I] =
-                C.MakeAction<LinkJobAction>(AL, types::TY_Image);
-          } else {
-            // When LTO is not enabled, we follow the conventional
-            // compiler phases, including backend and assemble phases.
-            ActionList AL;
-            Action *BackendAction = nullptr;
-            if (ToolChains.front()->getTriple().isSPIRV()) {
-              // Emit LLVM bitcode for SPIR-V targets. SPIR-V device tool chain
-              // (HIPSPVToolChain) runs post-link LLVM IR passes.
-              types::ID Output = Args.hasArg(options::OPT_S)
-                                     ? types::TY_LLVM_IR
-                                     : types::TY_LLVM_BC;
-              BackendAction =
-                  C.MakeAction<BackendJobAction>(CudaDeviceActions[I], Output);
-            } else
-              BackendAction = C.getDriver().ConstructPhaseAction(
-                  C, Args, phases::Backend, CudaDeviceActions[I],
-                  AssociatedOffloadKind);
-            auto AssembleAction = C.getDriver().ConstructPhaseAction(
-                C, Args, phases::Assemble, BackendAction,
-                AssociatedOffloadKind);
-            AL.push_back(AssembleAction);
-            // Create a link action to link device IR with device library
-            // and generate ISA.
-            CudaDeviceActions[I] =
-                C.MakeAction<LinkJobAction>(AL, types::TY_Image);
+          // Produce the device action from the current phase up to the assemble
+          // phase.
+          for (auto Ph : Phases) {
+            // Skip the phases that were already dealt with.
+            if (Ph < CurPhase)
+              continue;
+            // We have to be consistent with the host final phase.
+            if (Ph > FinalPhase)
+              break;
+
+            CudaDeviceActions[I] = C.getDriver().ConstructPhaseAction(
+                C, Args, Ph, CudaDeviceActions[I], Action::OFK_BANG);
+
+            if (Ph == phases::Assemble)
+              break;
           }
 
-          // OffloadingActionBuilder propagates device arch until an offload
-          // action. Since the next action for creating fatbin does
-          // not have device arch, whereas the above link action and its input
-          // have device arch, an offload action is needed to stop the null
-          // device arch of the next action being propagated to the above link
-          // action.
-          OffloadAction::DeviceDependences DDep;
-          DDep.add(*CudaDeviceActions[I], *ToolChains.front(), GpuArchList[I],
-                   AssociatedOffloadKind);
-          CudaDeviceActions[I] = C.MakeAction<OffloadAction>(
-              DDep, CudaDeviceActions[I]->getType());
+          // If we didn't reach the assemble phase, we can't generate the fat
+          // binary. We don't need to generate the fat binary if we are not in
+          // device-only mode.
+          if (!isa<AssembleJobAction>(CudaDeviceActions[I]) ||
+              CompileDeviceOnly)
+            continue;
+
+          Action *AssembleAction = CudaDeviceActions[I];
+          assert(AssembleAction->getType() == types::TY_Object);
+          assert(AssembleAction->getInputs().size() == 1);
+
+          Action *BackendAction = AssembleAction->getInputs()[0];
+          assert(BackendAction->getType() == types::TY_PP_Asm);
+
+          for (auto &A : {AssembleAction, BackendAction}) {
+            OffloadAction::DeviceDependences DDep;
+            DDep.add(*A, *ToolChains.front(), GpuArchList[I], Action::OFK_BANG);
+            DeviceActions.push_back(
+                C.MakeAction<OffloadAction>(DDep, A->getType()));
+          }
         }
 
-        if (!CompileDeviceOnly || !BundleOutput || *BundleOutput) {
-          // Create CN fat binary with a special "link" action.
-          CudaFatBinary = C.MakeAction<LinkJobAction>(CudaDeviceActions,
-                                                      types::TY_CN_FATBIN);
+        // We generate the fat binary if we have device input actions.
+        if (!DeviceActions.empty()) {
+          CudaFatBinary =
+              C.MakeAction<LinkJobAction>(DeviceActions, types::TY_CN_FATBIN);
 
           if (!CompileDeviceOnly) {
             DA.add(*CudaFatBinary, *ToolChains.front(), /*BoundArch=*/nullptr,
-                   AssociatedOffloadKind);
+                   Action::OFK_BANG);
             // Clear the fat binary, it is already a dependence to an host
             // action.
             CudaFatBinary = nullptr;
@@ -4638,47 +4637,37 @@ class OffloadingActionBuilder final {
           CudaDeviceActions.clear();
         }
 
+        // We avoid creating host action in device-only mode.
         return CompileDeviceOnly ? ABRT_Ignore_Host : ABRT_Success;
-      } else if (CurPhase == phases::Link) {
-        // Save CudaDeviceActions to DeviceLinkerInputs for each GPU subarch.
-        // This happens to each device action originated from each input file.
-        // Later on, device actions in DeviceLinkerInputs are used to create
-        // device link actions in appendLinkDependences and the created device
-        // link actions are passed to the offload action as device dependence.
-        DeviceLinkerInputs.resize(CudaDeviceActions.size());
-        auto LI = DeviceLinkerInputs.begin();
-        for (auto *A : CudaDeviceActions) {
-          LI->push_back(A);
-          ++LI;
-        }
-
-        // We will pass the device action as a host dependence, so we don't
-        // need to do anything else with them.
-        CudaDeviceActions.clear();
-        return CompileDeviceOnly ? ABRT_Ignore_Host : ABRT_Success;
+      } else if (CurPhase > phases::Backend) {
+        // If we are past the backend phase and still have a device action, we
+        // don't have to do anything as this action is already a device
+        // top-level action.
+        return ABRT_Success;
       }
+
+      assert(CurPhase < phases::Backend && "Generating single BANG "
+                                           "instructions should only occur "
+                                           "before the backend phase!");
 
       // By default, we produce an action for each device arch.
-      for (Action *&A : CudaDeviceActions)
-        A = C.getDriver().ConstructPhaseAction(C, Args, CurPhase, A,
-                                               AssociatedOffloadKind);
+      for (unsigned I = 0, E = GpuArchList.size(); I != E; ++I) {
 
-      if (CompileDeviceOnly && CurPhase == FinalPhase && BundleOutput &&
-          BundleOutput.value()) {
-        for (unsigned I = 0, E = GpuArchList.size(); I != E; ++I) {
+        CudaDeviceActions[I] = C.getDriver().ConstructPhaseAction(
+            C, Args, CurPhase, CudaDeviceActions[I]);
+
+        if (CurPhase == phases::Compile) {
           OffloadAction::DeviceDependences DDep;
           DDep.add(*CudaDeviceActions[I], *ToolChains.front(), GpuArchList[I],
-                   AssociatedOffloadKind);
-          CudaDeviceActions[I] = C.MakeAction<OffloadAction>(
-              DDep, CudaDeviceActions[I]->getType());
+                   Action::OFK_BANG);
+
+          OffloadingActionBuilderRef.pushForeignAction(
+              C.MakeAction<OffloadAction>(
+                  DDep, DDep.getActions().front()->getType()));
         }
-        CudaFatBinary =
-            C.MakeAction<OffloadBundlingJobAction>(CudaDeviceActions);
-        CudaDeviceActions.clear();
       }
 
-      return (CompileDeviceOnly && CurPhase == FinalPhase) ? ABRT_Ignore_Host
-                                                           : ABRT_Success;
+      return ABRT_Success;
     }
 
     void appendLinkDeviceActions(ActionList &AL) override {
@@ -5661,70 +5650,73 @@ class OffloadingActionBuilder final {
             DeviceLinkObjects.push_back(SYCLDeviceLibInputAction);
           }
         }
-      }else if(TC->getTriple().isMLISA() && NumOfDeviceLibLinked){
-        // For MLISA backend we need to also link libclc and CUDA libdevice
-        // at the same stage that we link all of the unbundled SYCL libdevice
-        // objects together.
-        std::string LibSpirvFile;
-        if (Args.hasArg(options::OPT_fsycl_libspirv_path_EQ)) {
-          auto ProvidedPath =
-              Args.getLastArgValue(options::OPT_fsycl_libspirv_path_EQ).str();
-          if (llvm::sys::fs::exists(ProvidedPath))
-            LibSpirvFile = ProvidedPath;
-        } else {
-          SmallVector<StringRef, 8> LibraryPaths;
-
-          // Expected path w/out install.
-          SmallString<256> WithoutInstallPath(C.getDriver().ResourceDir);
-          llvm::sys::path::append(WithoutInstallPath, Twine("../../clc"));
-          LibraryPaths.emplace_back(WithoutInstallPath.c_str());
-
-          // Expected path w/ install.
-          SmallString<256> WithInstallPath(C.getDriver().ResourceDir);
-          llvm::sys::path::append(WithInstallPath, Twine("../../../share/clc"));
-          LibraryPaths.emplace_back(WithInstallPath.c_str());
-
-          // Select remangled libclc variant
-          std::string LibSpirvTargetName = "libspirv-mlisa-cambricon-bang.bc";
-
-          for (StringRef LibraryPath : LibraryPaths) {
-            SmallString<128> LibSpirvTargetFile(LibraryPath);
-            llvm::sys::path::append(LibSpirvTargetFile, LibSpirvTargetName);
-            llvm::outs()<<"Notice : libspirv mlisa path is "<<LibSpirvTargetFile<<" !!!!! \n";
-            if (llvm::sys::fs::exists(LibSpirvTargetFile) ||
-                Args.hasArg(options::OPT__HASH_HASH_HASH)) {
-              LibSpirvFile = std::string(LibSpirvTargetFile.str());
-              break;
-            }
-          }
-        }
-
-        if (!LibSpirvFile.empty()) {
-          Arg *LibClcInputArg = MakeInputArg(Args, C.getDriver().getOpts(),
-                                             Args.MakeArgString(LibSpirvFile));
-          auto *SYCLLibClcInputAction =
-              C.MakeAction<InputAction>(*LibClcInputArg, types::TY_LLVM_BC);
-          DeviceLinkObjects.push_back(SYCLLibClcInputAction);
-        }
-
-        const toolchains::BangToolChain *BangTC =
-            static_cast<const toolchains::BangToolChain *>(TC);
-        for (auto LinkInputEnum : enumerate(DeviceLinkerInputs)) {
-          const char *BoundArch =
-              SYCLTargetInfoList[LinkInputEnum.index()].BoundArch;
-          llvm::outs()<<"Notice : bang lib device file boundArch is "<<BoundArch<<"!!!!! \n";
-          std::string LibDeviceFile =
-              BangTC->BangInstallation.getLibDeviceFile(BoundArch);
-          if (!LibDeviceFile.empty()) {
-            Arg *BangDeviceLibInputArg =
-                MakeInputArg(Args, C.getDriver().getOpts(),
-                             Args.MakeArgString(LibDeviceFile));
-            auto *SYCLDeviceLibInputAction = C.MakeAction<InputAction>(
-                *BangDeviceLibInputArg, types::TY_LLVM_BC);
-            DeviceLinkObjects.push_back(SYCLDeviceLibInputAction);
-          }
-        }        
       }
+      // else if(TC->getTriple().isMLISA() && NumOfDeviceLibLinked){
+      //   // For MLISA backend we need to also link libclc and MLISA libdevice
+      //   // at the same stage that we link all of the unbundled SYCL libdevice
+      //   // objects together.
+      //   std::string LibSpirvFile;
+      //   if (Args.hasArg(options::OPT_fsycl_libspirv_path_EQ)) {
+      //     auto ProvidedPath =
+      //         Args.getLastArgValue(options::OPT_fsycl_libspirv_path_EQ).str();
+      //     if (llvm::sys::fs::exists(ProvidedPath))
+      //       LibSpirvFile = ProvidedPath;
+      //     llvm::outs()<<"addSYCLDeviceLibs have option OPT_fsycl_libspirv_path_EQ LibSpirvFile is "<<LibSpirvFile<<"\n";
+      //   } else {
+      //     SmallVector<StringRef, 8> LibraryPaths;
+
+      //     // Expected path w/out install.
+      //     SmallString<256> WithoutInstallPath(C.getDriver().ResourceDir);
+      //     llvm::sys::path::append(WithoutInstallPath, Twine("../../clc"));
+      //     LibraryPaths.emplace_back(WithoutInstallPath.c_str());
+
+      //     // Expected path w/ install.
+      //     SmallString<256> WithInstallPath(C.getDriver().ResourceDir);
+      //     llvm::sys::path::append(WithInstallPath, Twine("../../../share/clc"));
+      //     LibraryPaths.emplace_back(WithInstallPath.c_str());
+
+      //     // Select remangled libclc variant
+      //     std::string LibSpirvTargetName = "remangled-l64-signed_char.libspirv-mlisa-cambricon-bang.bc";
+
+      //     for (StringRef LibraryPath : LibraryPaths) {
+      //       SmallString<128> LibSpirvTargetFile(LibraryPath);
+      //       llvm::sys::path::append(LibSpirvTargetFile, LibSpirvTargetName);
+      //       llvm::outs()<<"Notice : libspirv mlisa path is "<<LibSpirvTargetFile<<" !!!!! \n";
+      //       if (llvm::sys::fs::exists(LibSpirvTargetFile) ||
+      //           Args.hasArg(options::OPT__HASH_HASH_HASH)) {
+      //         LibSpirvFile = std::string(LibSpirvTargetFile.str());
+      //         break;
+      //       }
+      //     }
+      //   }
+        
+
+      //   if (!LibSpirvFile.empty()) {
+      //     Arg *LibClcInputArg = MakeInputArg(Args, C.getDriver().getOpts(),
+      //                                        Args.MakeArgString(LibSpirvFile));
+      //     auto *SYCLLibClcInputAction =
+      //         C.MakeAction<InputAction>(*LibClcInputArg, types::TY_LLVM_BC);
+      //     DeviceLinkObjects.push_back(SYCLLibClcInputAction);
+      //   }
+
+      //   const toolchains::BangToolChain *BangTC =
+      //       static_cast<const toolchains::BangToolChain *>(TC);
+      //   for (auto LinkInputEnum : enumerate(DeviceLinkerInputs)) {
+      //     const char *BoundArch =
+      //         SYCLTargetInfoList[LinkInputEnum.index()].BoundArch;
+      //     llvm::outs()<<"Notice : bang lib device file boundArch is "<<BoundArch<<"!!!!! \n";
+      //     std::string LibDeviceFile =
+      //         BangTC->BangInstallation.getLibDeviceFile(BoundArch);
+      //     if (!LibDeviceFile.empty()) {
+      //       Arg *BangDeviceLibInputArg =
+      //           MakeInputArg(Args, C.getDriver().getOpts(),
+      //                        Args.MakeArgString(LibDeviceFile));
+      //       auto *SYCLDeviceLibInputAction = C.MakeAction<InputAction>(
+      //           *BangDeviceLibInputArg, types::TY_LLVM_BC);
+      //       DeviceLinkObjects.push_back(SYCLDeviceLibInputAction);
+      //     }
+      //   }        
+      // }
       return NumOfDeviceLibLinked != 0;
     }
 
@@ -5985,7 +5977,7 @@ class OffloadingActionBuilder final {
 
           // reflects whether current target is ahead-of-time and can't
           // support runtime setting of specialization constants
-          bool isAOT = isNVPTX || isAMDGCN || isSpirvAOT;
+          bool isAOT = isNVPTX || isAMDGCN || isMLISA || isSpirvAOT;
 
           // post link is not optional - even if not splitting, always need to
           // process specialization constants
@@ -6256,6 +6248,18 @@ class OffloadingActionBuilder final {
           C.getDriver().Diag(clang::diag::err_drv_sycl_missing_amdgpu_arch);
           return true;
         }
+        // For CAMBRICON require the architecture to be set by the user
+        if (Triple.isMLISA() && llvm::none_of(GpuArchList, [&](auto &P) {
+              return P.first.isMLISA();
+            })) {
+          for(const auto& GpuArch : GpuArchList)    {
+            if(GpuArch.first.isMLISA()){
+              llvm::outs()<<"Handle Mlisa architecture is "<<GpuArch.second<<"\n";
+            }
+          }
+          C.getDriver().Diag(clang::diag::err_drv_sycl_missing_mlisa_arch);;
+          return true;
+        }
       }
 
       return false;
@@ -6442,7 +6446,7 @@ class OffloadingActionBuilder final {
                 ToolChains, [&](auto &TC) { return TT == TC->getTriple(); });
             assert(TCIt != ToolChains.end() &&
                    "Toolchain was not created for this platform");
-            if (!TT.isNVPTX() && !TT.isAMDGCN()) {
+            if (!TT.isNVPTX() && !TT.isAMDGCN() && !TT.isMLISA()) {
               // When users specify the target as 'intel_gpu_*', the proper
               // triple is 'spir64_gen'.  The given string from intel_gpu_*
               // is the target device.
@@ -7740,6 +7744,8 @@ Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
       Archs.insert(CudaArchToString(CudaArch::CudaDefault));
     else if (Kind == Action::OFK_HIP)
       Archs.insert(CudaArchToString(CudaArch::HIPDefault));
+    else if (Kind == Action::OFK_BANG)
+      Archs.insert(CudaArchToString(CudaArch::CNDefault));      
     else if (Kind == Action::OFK_OpenMP)
       Archs.insert(StringRef());
   } else {
@@ -7766,7 +7772,7 @@ Action *Driver::BuildOffloadingActions(Compilation &C,
   OffloadAction::DeviceDependences DDeps;
 
   const Action::OffloadKind OffloadKinds[] = {
-      Action::OFK_OpenMP, Action::OFK_Cuda, Action::OFK_HIP};
+      Action::OFK_OpenMP, Action::OFK_Cuda, Action::OFK_HIP, Action::OFK_BANG};
 
   for (Action::OffloadKind Kind : OffloadKinds) {
     SmallVector<const ToolChain *, 2> ToolChains;
@@ -7784,7 +7790,8 @@ Action *Driver::BuildOffloadingActions(Compilation &C,
 
     // The toolchain can be active for unsupported file types.
     if ((Kind == Action::OFK_Cuda && !types::isCuda(InputType)) ||
-        (Kind == Action::OFK_HIP && !types::isHIP(InputType)))
+        (Kind == Action::OFK_HIP && !types::isHIP(InputType)) ||
+        (Kind == Action::OFK_BANG && !types::isCN(InputType)))
       continue;
 
     // Get the product of all bound architectures and toolchains.
@@ -7877,6 +7884,15 @@ Action *Driver::BuildOffloadingActions(Compilation &C,
         C.MakeAction<LinkJobAction>(OffloadActions, types::TY_HIP_FATBIN);
     DDep.add(*FatbinAction, *C.getSingleOffloadToolChain<Action::OFK_HIP>(),
              nullptr, Action::OFK_HIP);
+  }else if (C.isOffloadingHostKind(Action::OFK_BANG) &&
+             !Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc,
+                           false)) {
+    // If we are not in RDC-mode we just emit the final BANG fatbinary for each
+    // translation unit, linking each input individually.
+    Action *FatbinAction =
+        C.MakeAction<LinkJobAction>(OffloadActions, types::TY_CN_FATBIN);
+    DDep.add(*FatbinAction, *C.getSingleOffloadToolChain<Action::OFK_BANG>(),
+             nullptr, Action::OFK_BANG);
   } else {
     // Package all the offloading actions into a single output that can be
     // embedded in the host and linked.

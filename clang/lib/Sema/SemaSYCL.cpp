@@ -380,6 +380,10 @@ bool Sema::isDeclAllowedInSYCLDeviceCode(const Decl *D) {
       if (FD->getBuiltinID() == Builtin::BIprintf)
         return true;
     }
+    if (Context.getTargetInfo().getTriple().isMLISA()) {
+      if (FD->getBuiltinID() == Builtin::BIprintf)
+        return true;
+    }
     const DeclContext *DC = FD->getDeclContext();
     if (II && II->isStr("__spirv_ocl_printf") &&
         !FD->isDefined() &&

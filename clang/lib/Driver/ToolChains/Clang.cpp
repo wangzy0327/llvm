@@ -123,6 +123,10 @@ forAllAssociatedToolChains(Compilation &C, const JobAction &JA,
     Work(*C.getSingleOffloadToolChain<Action::OFK_HIP>());
   else if (JA.isDeviceOffloading(Action::OFK_HIP))
     Work(*C.getSingleOffloadToolChain<Action::OFK_Host>());
+  else if (JA.isHostOffloading(Action::OFK_BANG))
+    Work(*C.getSingleOffloadToolChain<Action::OFK_BANG>());
+  else if (JA.isDeviceOffloading(Action::OFK_BANG))
+    Work(*C.getSingleOffloadToolChain<Action::OFK_Host>());    
 
   if (JA.isHostOffloading(Action::OFK_OpenMP)) {
     auto TCs = C.getOffloadToolChains<Action::OFK_OpenMP>();
@@ -404,7 +408,8 @@ static bool ShouldEnableAutolink(const ArgList &Args, const ToolChain &TC,
   }
   // The linker_option directives are intended for host compilation.
   if (JA.isDeviceOffloading(Action::OFK_Cuda) ||
-      JA.isDeviceOffloading(Action::OFK_HIP))
+      JA.isDeviceOffloading(Action::OFK_HIP) ||
+      JA.isDeviceOffloading(Action::OFK_BANG))
     Default = false;
   return Args.hasFlag(options::OPT_fautolink, options::OPT_fno_autolink,
                       Default);
@@ -1278,6 +1283,8 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
     getToolChain().AddCudaIncludeArgs(Args, CmdArgs);
   if (JA.isOffloading(Action::OFK_HIP))
     getToolChain().AddHIPIncludeArgs(Args, CmdArgs);
+  if (JA.isOffloading(Action::OFK_BANG))
+    getToolChain().AddBANGIncludeArgs(Args, CmdArgs);    
 
   if (JA.isOffloading(Action::OFK_SYCL))
     toolchains::SYCLToolChain::AddSYCLIncludeArgs(D, Args, CmdArgs);
@@ -1288,7 +1295,8 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
       !Args.hasArg(options::OPT_nostdinc) &&
       !Args.hasArg(options::OPT_nogpuinc) &&
       (getToolChain().getTriple().isNVPTX() ||
-       getToolChain().getTriple().isAMDGCN())) {
+       getToolChain().getTriple().isAMDGCN() ||
+       getToolChain().getTriple().isMLISA())) {
     if (!Args.hasArg(options::OPT_nobuiltininc)) {
       // Add openmp_wrappers/* to our system include path.  This lets us wrap
       // standard library headers.
@@ -2812,7 +2820,8 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
   StringRef LastSeenFfpContractOption;
   bool SeenUnsafeMathModeOption = false;
   if (!JA.isDeviceOffloading(Action::OFK_Cuda) &&
-      !JA.isOffloading(Action::OFK_HIP))
+      !JA.isOffloading(Action::OFK_HIP) &&
+      !JA.isOffloading(Action::OFK_BANG))
     FPContract = "on";
   bool StrictFPModel = false;
 
@@ -3047,7 +3056,8 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       DenormalFPMath = llvm::DenormalMode::getIEEE();
       DenormalFP32Math = llvm::DenormalMode::getIEEE();
       if (!JA.isDeviceOffloading(Action::OFK_Cuda) &&
-          !JA.isOffloading(Action::OFK_HIP)) {
+          !JA.isOffloading(Action::OFK_HIP) &&
+          !JA.isOffloading(Action::OFK_BANG)) {
         if (LastSeenFfpContractOption != "") {
           FPContract = LastSeenFfpContractOption;
         } else if (SeenUnsafeMathModeOption)
@@ -3090,7 +3100,8 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       DenormalFPMath = DefaultDenormalFPMath;
       DenormalFP32Math = llvm::DenormalMode::getIEEE();
       if (!JA.isDeviceOffloading(Action::OFK_Cuda) &&
-          !JA.isOffloading(Action::OFK_HIP)) {
+          !JA.isOffloading(Action::OFK_HIP) &&
+          !JA.isOffloading(Action::OFK_BANG)) {
         if (LastSeenFfpContractOption != "") {
           FPContract = LastSeenFfpContractOption;
         } else if (SeenUnsafeMathModeOption)
@@ -5100,13 +5111,14 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     // between device and host where we should be able to use the offloading
     // arch to add the macro to the host compile.
     auto addTargetMacros = [&](const llvm::Triple &Triple) {
-      if (!Triple.isSPIR() && !Triple.isNVPTX() && !Triple.isAMDGCN())
+      if (!Triple.isSPIR() && !Triple.isNVPTX() && !Triple.isAMDGCN() && !Triple.isMLISA())
         return;
       SmallString<64> Macro;
       if ((Triple.isSPIR() &&
            Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen) ||
-          Triple.isNVPTX() || Triple.isAMDGCN()) {
+          Triple.isNVPTX() || Triple.isAMDGCN() || Triple.isMLISA()) {
         StringRef Device = JA.getOffloadingArch();
+        llvm::outs()<<"============== ConstructJob getOffloadingArch is"<<std::string(Device)<<"  ============\n";
         if (!Device.empty()) {
           Macro = "-D";
           Macro += SYCL::gen::getGenDeviceMacro(Device);
@@ -6225,7 +6237,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // for sampling, overhead of call arc collection is way too high and there's
   // no way to collect the output.
   // Disable for SPIR-V compilations as well.
-  if (!Triple.isNVPTX() && !Triple.isAMDGCN() && !Triple.isSPIR())
+  if (!Triple.isNVPTX() && !Triple.isAMDGCN() && !Triple.isMLISA() && !Triple.isSPIR())
     addPGOAndCoverageFlags(TC, C, D, Output, Args, SanitizeArgs, CmdArgs);
 
   Args.AddLastArg(CmdArgs, options::OPT_fclang_abi_compat_EQ);
@@ -9664,6 +9676,8 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   // Enable PI program metadata
   if (getToolChain().getTriple().isNVPTX())
     addArgs(CmdArgs, TCArgs, {"-emit-program-metadata"});
+  if (getToolChain().getTriple().isMLISA())
+    addArgs(CmdArgs, TCArgs, {"-emit-obj"});    
   if (SYCLPostLink->getTrueType() == types::TY_LLVM_BC) {
     // single file output requested - this means only perform necessary IR
     // transformations (like specialization constant intrinsic lowering) and

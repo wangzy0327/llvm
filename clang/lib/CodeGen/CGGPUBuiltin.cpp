@@ -215,6 +215,12 @@ RValue CodeGenFunction::EmitAMDGPUDevicePrintfCallExpr(const CallExpr *E) {
   return RValue::get(Printf);
 }
 
+RValue CodeGenFunction::EmitMLISADevicePrintfCallExpr(const CallExpr *E) {
+  assert(getTarget().getTriple().isMLISA());
+  return EmitDevicePrintfCallExpr(
+      E, this, GetVprintfDeclaration(CGM.getModule()), false);
+}
+
 RValue CodeGenFunction::EmitOpenMPDevicePrintfCallExpr(const CallExpr *E) {
   assert(getTarget().getTriple().isNVPTX() ||
          getTarget().getTriple().isAMDGCN());

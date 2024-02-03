@@ -133,7 +133,7 @@ static inline bool IsAMDGpuArch(CudaArch A) {
 
 static inline bool IsMLISAArch(CudaArch A) {
   // Generic processor model is for testing only.
-  return A >= CudaArch::MLU270 && A < CudaArch::Generic;
+  return A >= CudaArch::MLU270 && A < CudaArch::LAST;
 }
 
 const char *CudaArchToString(CudaArch A);

@@ -194,6 +194,8 @@ StringRef Action::GetOffloadKindName(OffloadKind Kind) {
     return "openmp";
   case OFK_HIP:
     return "hip";
+  case OFK_BANG:
+    return "bang";    
   case OFK_SYCL:
     return "sycl";
 
@@ -348,7 +350,7 @@ void OffloadAction::DeviceDependences::add(Action &A, const ToolChain &TC,
   DeviceBoundArchs.push_back(BoundArch);
 
   // Add each active offloading kind from a mask.
-  for (OffloadKind OKind : {OFK_OpenMP, OFK_Cuda, OFK_HIP})
+  for (OffloadKind OKind : {OFK_OpenMP, OFK_Cuda, OFK_HIP, OFK_BANG})
     if (OKind & OffloadKindMask)
       DeviceOffloadKinds.push_back(OKind);
 }
