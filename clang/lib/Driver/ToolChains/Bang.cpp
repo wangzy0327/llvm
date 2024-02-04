@@ -674,7 +674,7 @@ void BangToolChain::addClangTargetOptions(
   // TODO(wangshiyu): close register allocation in LLVM.
   if (DriverArgs.getLastArg(options::OPT_g_Group)) {
     CC1Args.push_back("-mllvm");
-    CC1Args.push_back("-mlisa-enable-register-allocation=true");
+    // CC1Args.push_back("-mlisa-enable-register-allocation=true");
   }
 
   // If --bang-stack-on-ldram, -fprofile-generate* or -fprofile-instr-generate*

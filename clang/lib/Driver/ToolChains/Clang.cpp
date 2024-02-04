@@ -5118,7 +5118,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
            Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen) ||
           Triple.isNVPTX() || Triple.isAMDGCN() || Triple.isMLISA()) {
         StringRef Device = JA.getOffloadingArch();
-        llvm::outs()<<"============== ConstructJob getOffloadingArch is"<<std::string(Device)<<"  ============\n";
+        llvm::outs()<<"============== ConstructJob getOffloadingArch is "<<std::string(Device)<<"  ============\n";
         if (!Device.empty()) {
           Macro = "-D";
           Macro += SYCL::gen::getGenDeviceMacro(Device);

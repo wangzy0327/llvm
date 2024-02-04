@@ -478,12 +478,10 @@ std::string tools::getCPUName(const Driver &D, const ArgList &Args,
 
   case llvm::Triple::mlisa: {
     const Arg *A = Args.getLastArg(options::OPT_march_EQ);
-    std::string gpuName = "mtp_270";
+    std::string gpuName;
     if (A)
       gpuName = A->getValue();
     llvm::outs()<<"CommonArgs Triple::mlisa value is : "<<gpuName<<" !!!! \n";
-    gpuName = "mtp_372";
-    llvm::outs()<<"ToolChain amdgcn do not have options::OPT_march_EQ\n";
     return gpuName;
   }
   case llvm::Triple::wasm32:
