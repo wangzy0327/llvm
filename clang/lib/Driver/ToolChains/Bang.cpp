@@ -374,8 +374,12 @@ void MLISA::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
   llvm::outs()<<"=============== MLISA::Assembler get NormalizedTriple  ============\n";
   std::string NormalizedTriple =
     C.getSingleOffloadToolChain<Action::OFK_Host>()->getTriple().normalize();
+  llvm::outs()<<"assemble mlisa normalizedTriple is : "<<NormalizedTriple<<"\n";
+  llvm::outs()<<"assemble mlisa mlu-arch is : "<<CudaArchToString(mlu_arch)<<"\n";
+  llvm::outs()<<"assemble mlisa output file is : "<<CudaArchToString(mlu_arch)<<"\n";
   CmdArgs.push_back("--mcpu");
   CmdArgs.push_back(Args.MakeArgString(NormalizedTriple));
+  llvm::outs()<<"mlisa normalizedTriple is : "<<NormalizedTriple<<"\n";
   CmdArgs.push_back("--mlu-arch");
   CmdArgs.push_back(Args.MakeArgString(CudaArchToString(mlu_arch)));
   CmdArgs.push_back("--output");
