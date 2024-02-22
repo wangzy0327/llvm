@@ -9675,9 +9675,7 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
     addArgs(CmdArgs, TCArgs, {"-emit-param-info"});
   // Enable PI program metadata
   if (getToolChain().getTriple().isNVPTX())
-    addArgs(CmdArgs, TCArgs, {"-emit-program-metadata"});
-  if (getToolChain().getTriple().isMLISA())
-    addArgs(CmdArgs, TCArgs, {"-emit-obj"});    
+    addArgs(CmdArgs, TCArgs, {"-emit-program-metadata"});  
   if (SYCLPostLink->getTrueType() == types::TY_LLVM_BC) {
     // single file output requested - this means only perform necessary IR
     // transformations (like specialization constant intrinsic lowering) and

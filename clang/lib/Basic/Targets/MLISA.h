@@ -148,7 +148,7 @@ public:
       return HostTarget->checkCallingConvention(CC);
     return CCCR_Warning;
   }
-
+  bool hasBitIntType() const override { return true; }
 };
 
 } // namespace targets
