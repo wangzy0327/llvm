@@ -109,7 +109,7 @@ TYPE("dSYM",                     dSYM,         INVALID,         "dSYM",   phases
 TYPE("dependencies",             Dependencies, INVALID,         "d",      phases::Compile, phases::Backend, phases::Assemble, phases::Link)
 TYPE("cuda-fatbin",              CUDA_FATBIN,  INVALID,         "fatbin", phases::Compile, phases::Backend, phases::Assemble, phases::Link)
 TYPE("hip-fatbin",               HIP_FATBIN,   INVALID,         "hipfb",  phases::Compile, phases::Backend, phases::Assemble, phases::Link)
-TYPE("cn-fatbin",                CN_FATBIN,    INVALID,         "cnfb",   phases::Compile, phases::Backend, phases::Assemble, phases::Link)
+TYPE("cn-fatbin",                CN_FATBIN,    INVALID,         "cnfatbin",   phases::Compile, phases::Backend, phases::Assemble, phases::Link)
 TYPE("spirv",                    SPIRV,        INVALID,         "spv",    phases::Compile, phases::Backend, phases::Assemble, phases::Link)
 TYPE("sycl-fatbin",              SYCL_FATBIN,  INVALID,         nullptr,  phases::Compile, phases::Backend, phases::Assemble, phases::Link)
 TYPE("tempfilelist",             Tempfilelist, INVALID,         "txt",    phases::Compile, phases::Backend, phases::Assemble, phases::Link)

@@ -4846,6 +4846,36 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       llvm_unreachable("unexpectedly given multiple inputs");
     }
   }
+  //Since Cambrian does not provide llvm/lib backend related files, you need to use llvm-mm/bin/llc to compile IR to assembly language.
+  if(IsSYCL && JA.getType() == types::TY_PP_Asm && Triple.isMLISA()){
+    SmallString<128> LlcPath("/usr/local/neuware/lib/llvm-mm/bin");
+    llvm::outs()<<"llc get Driver path is "<<LlcPath<<"\n";
+    llvm::sys::path::append(LlcPath, "llc");
+    // Construct llc command.
+    // The output is an object file
+    ArgStringList LlcArgs{"-filetype=asm","--march=mlisa"};
+    StringRef deviceOffload = JA.getOffloadingArch();
+    std::string devOff = std::string(deviceOffload);
+    llvm::outs()<<"llc get device offload is "<<deviceOffload<<"\n";
+    // std::string deviceFeature = "--mcpu=";
+    // deviceFeature += devOff;
+    // llvm::outs()<<"llc get device feature is "<<deviceFeature.c_str()<<"\n";
+    // LlcArgs.push_back(deviceFeature.c_str());
+    LlcArgs.push_back(Args.MakeArgString("--mcpu="+deviceOffload));
+    LlcArgs.push_back("-o");
+    LlcArgs.push_back(Output.getFilename());
+    for (const auto &II : Inputs) {
+      addDashXForInput(Args, II, LlcArgs);
+      if (II.isFilename())
+        LlcArgs.push_back(II.getFilename());
+      else
+        II.getInputArg().renderAsInput(Args, LlcArgs);
+    }
+    const char *Llc = C.getArgs().MakeArgString(LlcPath);
+    C.addCommand(std::make_unique<Command>(
+         JA, *this, ResponseFileSupport::None(), Llc, LlcArgs, None));
+    return;
+  }
 
   const llvm::Triple *AuxTriple =
       (IsSYCL || IsCuda || IsHIP || IsBang) ? TC.getAuxTriple() : nullptr;
@@ -9676,6 +9706,7 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   // Enable PI program metadata
   if (getToolChain().getTriple().isNVPTX())
     addArgs(CmdArgs, TCArgs, {"-emit-program-metadata"});  
+  //if BangToolChain add -ir-output-only
   if (SYCLPostLink->getTrueType() == types::TY_LLVM_BC) {
     // single file output requested - this means only perform necessary IR
     // transformations (like specialization constant intrinsic lowering) and

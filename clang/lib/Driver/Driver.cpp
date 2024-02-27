@@ -3888,7 +3888,7 @@ class OffloadingActionBuilder final {
           Ty = types::TY_HIP_DEVICE;
         }else if(IA->getType() == types::TY_CUDA){
           Ty = types::TY_CUDA_DEVICE;
-        }else{
+        }else if(IA->getType() == types::TY_CN){
           //IA->getType() == types::TY_CN
           Ty = types::TY_CN_DEVICE;
         }
