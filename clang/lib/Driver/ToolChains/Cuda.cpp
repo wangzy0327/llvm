@@ -401,7 +401,8 @@ void NVPTX::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
   const auto &TC =
       static_cast<const toolchains::CudaToolChain &>(getToolChain());
   assert(TC.getTriple().isNVPTX() && "Wrong platform");
-
+  //ptxas --outputfile .cubin  .s
+  //fatbinary --create  .fatbin file = .s file = .cubin
   StringRef GPUArchName;
   // If this is an OpenMP action we need to extract the device architecture
   // from the -march=arch option. This option may come from -Xopenmp-target

@@ -89,18 +89,18 @@ namespace tools {
 namespace MLISA {
 
 // Run llc, the MLISA backend
-class LLVM_LIBRARY_VISIBILITY BackendCompiler : public Tool {
- public:
-   BackendCompiler(const ToolChain &TC)
-       : Tool("MLISA::Backend", "llc", TC) {}
+// class LLVM_LIBRARY_VISIBILITY BackendCompiler : public Tool {
+//  public:
+//    BackendCompiler(const ToolChain &TC)
+//        : Tool("MLISA::Backend", "llc", TC) {}
 
-   bool hasIntegratedCPP() const override { return false; }
+//    bool hasIntegratedCPP() const override { return false; }
 
-   void ConstructJob(Compilation &C, const JobAction &JA,
-                     const InputInfo &Output, const InputInfoList &Inputs,
-                     const llvm::opt::ArgList &TCArgs,
-                     const char *LinkingOutput) const override;
-};
+//    void ConstructJob(Compilation &C, const JobAction &JA,
+//                      const InputInfo &Output, const InputInfoList &Inputs,
+//                      const llvm::opt::ArgList &TCArgs,
+//                      const char *LinkingOutput) const override;
+// };
 
 
 // Run cnas, the MLISA assembler.
@@ -227,7 +227,7 @@ public:
 protected:
   Tool *buildAssembler() const override;  // cnas
   Tool *buildLinker() const override;     // fatbinary (ok, not really a linker)
-  Tool *buildBackendCompiler() const override; //llc
+  // Tool *buildBackendCompiler() const override; //llc
 
 private:
   const Action::OffloadKind OK;

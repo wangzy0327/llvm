@@ -296,14 +296,14 @@ static DeviceDebugInfoLevel mustEmitDebugInfo(const ArgList &Args) {
   return willEmitRemarks(Args) ? DebugDirectivesOnly : DisableDebugInfo;
 }
 
-void MLISA::BackendCompiler::ConstructJob(Compilation &C, const JobAction &JA,
-                                    const InputInfo &Output,
-                                    const InputInfoList &Inputs,
-                                    const ArgList &Args,
-                                    const char *LinkingOutput) const {
-  llvm::outs()<<"MLISA backend Compiler does not implement ConstructJob"<<"\n";
-  return ;
-}
+// void MLISA::BackendCompiler::ConstructJob(Compilation &C, const JobAction &JA,
+//                                     const InputInfo &Output,
+//                                     const InputInfoList &Inputs,
+//                                     const ArgList &Args,
+//                                     const char *LinkingOutput) const {
+//   llvm::outs()<<"MLISA backend Compiler does not implement ConstructJob"<<"\n";
+//   return ;
+// }
 
 void MLISA::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
                                     const InputInfo &Output,
@@ -313,6 +313,11 @@ void MLISA::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
   const auto &TC =
       static_cast<const toolchains::BangToolChain &>(getToolChain());
   assert(TC.getTriple().isMLISA() && "Wrong platform");
+
+  //process
+  //cnas -O0 --mcpu --output  .o --input .s
+  //cnas --fatbin --output .cnfatbin --create .cnfatbin.c --mcpu  --input .s --input .o
+  //cncc -c .cnfatbin.c -o .cnfatbin
 
   StringRef GPUArchName;
   // If this is an OpenMP action we need to extract the device architecture
@@ -366,7 +371,7 @@ void MLISA::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
   } else {
     // If no -O was passed, pass -O3 to ptxas -- this makes ptxas's
     // optimization level the same as the ptxjitcompiler.
-    CmdArgs.push_back("-O3");
+    CmdArgs.push_back("-O0");
   }
   if (DIKind == DebugDirectivesOnly)
     CmdArgs.push_back("-lineinfo");
@@ -478,7 +483,16 @@ void MLISA::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   const auto &TC =
       static_cast<const toolchains::BangToolChain &>(getToolChain());
   assert(TC.getTriple().isMLISA() && "Wrong platform");
-
+  //error
+  //"/usr/local/neuware/bin/cnas" "--fatbin" "--output" "/tmp/hello-sycl-e6fa3a/hello-sycl-mtp_372.out" "--create" "/tmp/hello-sycl-e6fa3a/hello-sycl-mtp_372.out.c" "--mcpu" "x86_64-unknown-linux-gnu" "--input" "/tmp/hello-sycl-5d2996/hello-sycl-mtp_372.o"
+  //correct
+  //"/usr/local/neuware/bin/cnas" "-O0" "--mcpu" "x86_64-unknown-linux-gnu" "--mlu-arch" "mtp_372" "--output" "/tmp/hello-sycl-5d2996/hello-sycl-mtp_372.o" "--input" "/tmp/hello-sycl-2b0392/hello-sycl-mtp_372.s"
+  //"/usr/local/neuware/bin/cnas" "--fatbin" "--output" "/tmp/hello-sycl-e6fa3a/hello-sycl-mtp_372.out" "--create" "/tmp/hello-sycl-e6fa3a/hello-sycl-mtp_372.cnfatbin.c" "--mcpu" "x86_64-unknown-linux-gnu" "--input" "/tmp/hello-sycl-5d2996/hello-sycl-mtp_372.o" "--input" "/tmp/hello-sycl-2b0392/hello-sycl-mtp_372.s"
+  
+  //process
+  //cnas -O0 --mcpu --output  .o --input .s
+  //cnas --fatbin --output .cnfatbin --create .cnfatbin.c --mcpu --input .s --input .o
+  //cncc -c .cnfatbin.c -o .cnfatbin
   ArgStringList CmdArgs;
   CmdArgs.push_back(Args.MakeArgString("--fatbin"));
   CmdArgs.push_back(Args.MakeArgString("--output"));
@@ -802,9 +816,9 @@ BangToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
 
 }
 
-Tool *BangToolChain::buildBackendCompiler() const {
-  return new tools::MLISA::BackendCompiler(*this);
-}
+// Tool *BangToolChain::buildBackendCompiler() const {
+//   return new tools::MLISA::BackendCompiler(*this);
+// }
 
 Tool *BangToolChain::buildAssembler() const {
   return new tools::MLISA::Assembler(*this);

@@ -4670,6 +4670,7 @@ class OffloadingActionBuilder final {
       return ABRT_Success;
     }
 
+/*
     void appendLinkDeviceActions(ActionList &AL) override {
       if (DeviceLinkerInputs.size() == 0)
         return;
@@ -4726,6 +4727,7 @@ class OffloadingActionBuilder final {
     Action* appendLinkHostActions(ActionList &AL) override { return AL.back(); }
 
     void appendLinkDependences(OffloadAction::DeviceDependences &DA) override {}
+*/
   };
 
   /// OpenMP action builder. The host bitcode is passed to the device frontend
@@ -5021,12 +5023,13 @@ class OffloadingActionBuilder final {
       auto *AA = C.getDriver().ConstructPhaseAction(C, Args, phases::Assemble,
                                                     BA, AssociatedOffloadKind);
 
-      ActionList AL = {AA};
-      Action *LinkAction = C.MakeAction<LinkJobAction>(AL, types::TY_Image);
-      ActionList CNActions = {LinkAction};
-      JobAction *CNFatBinary =
-          C.MakeAction<LinkJobAction>(CNActions, types::TY_CN_FATBIN);
-      return CNFatBinary;
+      ActionList AL = {BA, AA};
+      // Action *LinkAction = C.MakeAction<LinkJobAction>(AL, types::TY_Image);
+      // ActionList CNActions = {LinkAction};
+      // JobAction *CNFatBinary =
+      //     C.MakeAction<LinkJobAction>(CNActions, types::TY_CN_FATBIN);
+      // return CNFatBinary;
+      return C.MakeAction<LinkJobAction>(AL, types::TY_CN_FATBIN);
     }
 
     Action *ExternalCudaAction = nullptr;
