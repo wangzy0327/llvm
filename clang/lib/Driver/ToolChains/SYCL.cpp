@@ -70,6 +70,24 @@ void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
   ArgStringList ForeachArgs;
   std::string OutputFileName(T->getToolChain().getInputFilename(Output));
   ForeachArgs.push_back(C.getArgs().MakeArgString("--out-ext=" + Ext));
+  const char* BaseInput = "";
+  int flag = 0;
+  if(Ext.equals("cnfatbin")){
+    for (auto &Arg : InputCommand->getArguments()){
+      std::string arg(Arg);
+      if(arg.find("--create")!= std::string::npos)
+        flag = 1;
+      if(arg.find(".cnfatbin.c") != std::string::npos && !flag){
+        llvm::outs()<<"special cnfatbin process !!!! \n";
+        const InputInfo &firstInput = InputFiles.front();
+        BaseInput = firstInput.getBaseInput();
+        InputInfoList& inputInfos = const_cast<InputInfoList &>(InputFiles);
+        inputInfos.clear();
+        inputInfos.push_back(InputInfo(types::TY_CN_FATBIN,C.getArgs().MakeArgString(OutputFileName+".c"),BaseInput));
+        // inputInfos.push_back(InputInfo(types::TY_CN_FATBIN,C.getArgs().MakeArgString(OutputFileName),BaseInput));
+      }
+    }
+  }
   for (auto &I : InputFiles) {
     std::string Filename(T->getToolChain().getInputFilename(I));
     ForeachArgs.push_back(
@@ -354,7 +372,7 @@ void SYCL::Linker::ConstructJob(Compilation &C, const JobAction &JA,
         continue;
       NvptxInputs.push_back(II);
     }
-
+    llvm::outs()<<"SYCL::Linker::ConstructJob  constructLLVMLinkCommand prefix for temporary file name is "<<Prefix<<"\n";
     constructLLVMLinkCommand(C, JA, Output, Args, SubArchName, Prefix,
                              NvptxInputs);
     return;
