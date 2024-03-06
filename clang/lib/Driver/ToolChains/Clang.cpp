@@ -4849,18 +4849,12 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   //Since Cambrian does not provide llvm/lib backend related files, you need to use llvm-mm/bin/llc to compile IR to assembly language.
   if(IsSYCL && JA.getType() == types::TY_PP_Asm && Triple.isMLISA()){
     SmallString<128> LlcPath("/usr/local/neuware/lib/llvm-mm/bin");
-    llvm::outs()<<"llc get Driver path is "<<LlcPath<<"\n";
     llvm::sys::path::append(LlcPath, "llc");
     // Construct llc command.
     // The output is an object file
     ArgStringList LlcArgs{"-filetype=asm","--march=mlisa"};
     StringRef deviceOffload = JA.getOffloadingArch();
     std::string devOff = std::string(deviceOffload);
-    llvm::outs()<<"llc get device offload is "<<deviceOffload<<"\n";
-    // std::string deviceFeature = "--mcpu=";
-    // deviceFeature += devOff;
-    // llvm::outs()<<"llc get device feature is "<<deviceFeature.c_str()<<"\n";
-    // LlcArgs.push_back(deviceFeature.c_str());
     LlcArgs.push_back(Args.MakeArgString("--mcpu="+deviceOffload));
     LlcArgs.push_back("-o");
     LlcArgs.push_back(Output.getFilename());
@@ -5148,7 +5142,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
            Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen) ||
           Triple.isNVPTX() || Triple.isAMDGCN() || Triple.isMLISA()) {
         StringRef Device = JA.getOffloadingArch();
-        llvm::outs()<<"============== ConstructJob getOffloadingArch is "<<std::string(Device)<<"  ============\n";
         if (!Device.empty()) {
           Macro = "-D";
           Macro += SYCL::gen::getGenDeviceMacro(Device);

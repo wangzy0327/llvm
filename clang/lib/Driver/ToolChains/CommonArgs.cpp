@@ -481,7 +481,6 @@ std::string tools::getCPUName(const Driver &D, const ArgList &Args,
     std::string gpuName;
     if (A)
       gpuName = A->getValue();
-    llvm::outs()<<"CommonArgs Triple::mlisa value is : "<<gpuName<<" !!!! \n";
     return gpuName;
   }
   case llvm::Triple::wasm32:

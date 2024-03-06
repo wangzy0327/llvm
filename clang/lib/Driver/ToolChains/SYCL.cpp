@@ -80,7 +80,6 @@ void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
       if(arg.find("--create")!= std::string::npos)
         flag = 1;
       if(arg.find(".cnfatbin.c") != std::string::npos && !flag){
-        llvm::outs()<<"special cnfatbin process !!!! \n";
         const InputInfo &firstInput = InputFiles.front();
         BaseInput = firstInput.getBaseInput();
         InputInfoList& inputInfos = const_cast<InputInfoList &>(InputFiles);
@@ -937,7 +936,6 @@ void SYCLToolChain::TranslateGPUTargetOpt(const llvm::opt::ArgList &Args,
         parseTargetOpts(ArgString, Args, CmdArgs);
         A->claim();
       }
-      // llvm::outs()<<"llvm SYCLToolChain::TranslateGPUTargetOpt Opt_EQ value : "<<A->getValue()<<"\n";
     }
   }
 }

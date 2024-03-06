@@ -119,9 +119,6 @@ static std::optional<llvm::Triple> getOffloadTargetTriple(const Driver &D,
   // Offload compilation flow does not support multiple targets for now. We
   // need the HIPActionBuilder (and possibly the CudaActionBuilder{,Base}too)
   // to support multiple tool chains first.
-  for(auto targetName : OffloadTargets){
-    llvm::outs()<<"======== getOffloadTargetTriple is "<<targetName<<" ============\n";
-  }
   switch (OffloadTargets.size()) {
   default:
     D.Diag(diag::err_drv_only_one_offload_target_supported);
@@ -851,9 +848,6 @@ static bool addSYCLDefaultTriple(Compilation &C,
   // Add the default triple as it was not found.
   llvm::Triple DefaultTriple =
       C.getDriver().MakeSYCLDeviceTriple(getDefaultSYCLArch(C));
-  
-  
-  llvm::outs()<<"##### addSYCLDefaultTriple SYCL Default Triple is : "<<DefaultTriple.getArch()<<"\n";
         
   SYCLTriples.insert(SYCLTriples.begin(), DefaultTriple);
   return true;
@@ -944,7 +938,6 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       (C.getInputArgs().hasArg(options::OPT_fopenmp_targets_EQ) ||
        C.getInputArgs().hasArg(options::OPT_offload_arch_EQ));
   if (IsOpenMPOffloading) {
-    llvm::outs()<<"==========in openMP Offloading==============="<<"\n";
     // We expect that -fopenmp-targets is always used in conjunction with the
     // option -fopenmp specifying a valid runtime with offloading support, i.e.
     // libomp or libiomp.
@@ -1580,9 +1573,7 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
   if (IsCLMode() && !ContainsError) {
     SmallVector<const char *, 16> CLModePassThroughArgList;
     for (const auto *A : Args.filtered(options::OPT__SLASH_clang)) {
-      llvm::outs()<<"Clang Driver BuildCompilation CLModePassArgList : "<<A->getValue()<<"\n";
       A->claim();
-      llvm::outs()<<"Clang Driver BuildCompilation CLModePassArgList isClaimed : "<<A->isClaimed()<<"\n";
       CLModePassThroughArgList.push_back(A->getValue());
     }
 
@@ -5654,72 +5645,6 @@ class OffloadingActionBuilder final {
           }
         }
       }
-      // else if(TC->getTriple().isMLISA() && NumOfDeviceLibLinked){
-      //   // For MLISA backend we need to also link libclc and MLISA libdevice
-      //   // at the same stage that we link all of the unbundled SYCL libdevice
-      //   // objects together.
-      //   std::string LibSpirvFile;
-      //   if (Args.hasArg(options::OPT_fsycl_libspirv_path_EQ)) {
-      //     auto ProvidedPath =
-      //         Args.getLastArgValue(options::OPT_fsycl_libspirv_path_EQ).str();
-      //     if (llvm::sys::fs::exists(ProvidedPath))
-      //       LibSpirvFile = ProvidedPath;
-      //     llvm::outs()<<"addSYCLDeviceLibs have option OPT_fsycl_libspirv_path_EQ LibSpirvFile is "<<LibSpirvFile<<"\n";
-      //   } else {
-      //     SmallVector<StringRef, 8> LibraryPaths;
-
-      //     // Expected path w/out install.
-      //     SmallString<256> WithoutInstallPath(C.getDriver().ResourceDir);
-      //     llvm::sys::path::append(WithoutInstallPath, Twine("../../clc"));
-      //     LibraryPaths.emplace_back(WithoutInstallPath.c_str());
-
-      //     // Expected path w/ install.
-      //     SmallString<256> WithInstallPath(C.getDriver().ResourceDir);
-      //     llvm::sys::path::append(WithInstallPath, Twine("../../../share/clc"));
-      //     LibraryPaths.emplace_back(WithInstallPath.c_str());
-
-      //     // Select remangled libclc variant
-      //     std::string LibSpirvTargetName = "remangled-l64-signed_char.libspirv-mlisa-cambricon-bang.bc";
-
-      //     for (StringRef LibraryPath : LibraryPaths) {
-      //       SmallString<128> LibSpirvTargetFile(LibraryPath);
-      //       llvm::sys::path::append(LibSpirvTargetFile, LibSpirvTargetName);
-      //       llvm::outs()<<"Notice : libspirv mlisa path is "<<LibSpirvTargetFile<<" !!!!! \n";
-      //       if (llvm::sys::fs::exists(LibSpirvTargetFile) ||
-      //           Args.hasArg(options::OPT__HASH_HASH_HASH)) {
-      //         LibSpirvFile = std::string(LibSpirvTargetFile.str());
-      //         break;
-      //       }
-      //     }
-      //   }
-        
-
-      //   if (!LibSpirvFile.empty()) {
-      //     Arg *LibClcInputArg = MakeInputArg(Args, C.getDriver().getOpts(),
-      //                                        Args.MakeArgString(LibSpirvFile));
-      //     auto *SYCLLibClcInputAction =
-      //         C.MakeAction<InputAction>(*LibClcInputArg, types::TY_LLVM_BC);
-      //     DeviceLinkObjects.push_back(SYCLLibClcInputAction);
-      //   }
-
-      //   const toolchains::BangToolChain *BangTC =
-      //       static_cast<const toolchains::BangToolChain *>(TC);
-      //   for (auto LinkInputEnum : enumerate(DeviceLinkerInputs)) {
-      //     const char *BoundArch =
-      //         SYCLTargetInfoList[LinkInputEnum.index()].BoundArch;
-      //     llvm::outs()<<"Notice : bang lib device file boundArch is "<<BoundArch<<"!!!!! \n";
-      //     std::string LibDeviceFile =
-      //         BangTC->BangInstallation.getLibDeviceFile(BoundArch);
-      //     if (!LibDeviceFile.empty()) {
-      //       Arg *BangDeviceLibInputArg =
-      //           MakeInputArg(Args, C.getDriver().getOpts(),
-      //                        Args.MakeArgString(LibDeviceFile));
-      //       auto *SYCLDeviceLibInputAction = C.MakeAction<InputAction>(
-      //           *BangDeviceLibInputArg, types::TY_LLVM_BC);
-      //       DeviceLinkObjects.push_back(SYCLDeviceLibInputAction);
-      //     }
-      //   }        
-      // }
       return NumOfDeviceLibLinked != 0;
     }
 

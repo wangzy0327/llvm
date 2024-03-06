@@ -70,7 +70,6 @@ BangInstallationDetector::BangInstallationDetector(
         llvm::sys::fs::real_path(*cnas, cnasAbsolutePath);
 
         StringRef cnasDir = llvm::sys::path::parent_path(cnasAbsolutePath);
-        llvm::outs()<<"Notice : Bang path is "<<std::string(llvm::sys::path::parent_path(cnasDir))<<" !!!\n";
         if (llvm::sys::path::filename(cnasDir) == "bin")
           Candidates.emplace_back(
               std::string(llvm::sys::path::parent_path(cnasDir)),
@@ -113,7 +112,6 @@ BangInstallationDetector::BangInstallationDetector(
         LibPath = InstallPath + "/lib";
     else
         continue;
-    llvm::outs()<<"######## mlu libpath is "<<LibPath<<"\n";
 
     char buffer[128];     // 存储命令执行结果的缓冲区
     const char* strCmd = "cnmon | grep 'MLU[0-9][0-9][0-9]' -o";
@@ -129,7 +127,6 @@ BangInstallationDetector::BangInstallationDetector(
     
     pclose(fp);         // 关闭命令输出管道
     std::string GpuArch(buffer);
-    llvm::outs()<<"######## mlu Arch is "<<GpuArch<<"\n";
     GpuArch = GpuArch.substr(3);
     int archNum = std::stoi(GpuArch);
     std::string archName;
@@ -180,32 +177,6 @@ BangInstallationDetector::BangInstallationDetector(
     // -nobanglib hasn't been specified.
     if (LibDeviceMap.empty() && !NoBangLib)
       continue;
-
-    // //bang mlu arch mapping diff
-    // const char* vir_arch_str = CudaArchToVirtualArchString(GpuArch);
-    // std::string GpuArchName(vir_arch_str);
-
-    // if (GpuArchName >= "mlu_200"){
-    //   // __BANG_ARCH__ >= 200
-    //   std::string FilePath = LibDevicePath + "/libdevice.compute_20.bc";
-    //   if (FS.exists(FilePath)) {
-    //     LibDeviceMap["mtp_270"] = FilePath;
-    //   }
-    // } else if(GpuArchName >= "mlu300"){
-    //   // __BANG_ARCH__ >= 300
-    //   std::string FilePath = LibDevicePath + "/libdevice.compute_30.bc";
-    //   if (FS.exists(FilePath)) {
-    //     LibDeviceMap["mtp_372"] = FilePath;
-    //   }
-    // }else if(GpuArchName >= "mlu500"){
-    //   // __BANG_ARCH__ >= 500
-    //   std::string FilePath = LibDevicePath + "/libdevice.compute_50.bc";
-    //   if (FS.exists(FilePath)) {
-    //     LibDeviceMap["mtp_592"] = FilePath;
-    //   }
-    // }
-
-
 
     IsValid = true;
     break;
@@ -296,15 +267,6 @@ static DeviceDebugInfoLevel mustEmitDebugInfo(const ArgList &Args) {
   return willEmitRemarks(Args) ? DebugDirectivesOnly : DisableDebugInfo;
 }
 
-// void MLISA::BackendCompiler::ConstructJob(Compilation &C, const JobAction &JA,
-//                                     const InputInfo &Output,
-//                                     const InputInfoList &Inputs,
-//                                     const ArgList &Args,
-//                                     const char *LinkingOutput) const {
-//   llvm::outs()<<"MLISA backend Compiler does not implement ConstructJob"<<"\n";
-//   return ;
-// }
-
 void MLISA::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
                                     const InputInfo &Output,
                                     const InputInfoList &Inputs,
@@ -331,7 +293,6 @@ void MLISA::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
 
   // Obtain architecture from the action.
   CudaArch mlu_arch = StringToCudaArch(GPUArchName);
-  llvm::outs()<<"=========mlisa Assembler mlu_arch is "<<CudaArchToString(mlu_arch)<<"===========\n";
   assert(mlu_arch != CudaArch::UNKNOWN &&
          "Device action expected to have an architecture.");
 
@@ -376,15 +337,10 @@ void MLISA::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
   if (DIKind == DebugDirectivesOnly)
     CmdArgs.push_back("-lineinfo");
 
-  llvm::outs()<<"=============== MLISA::Assembler get NormalizedTriple  ============\n";
   std::string NormalizedTriple =
     C.getSingleOffloadToolChain<Action::OFK_Host>()->getTriple().normalize();
-  // llvm::outs()<<"assemble mlisa normalizedTriple is : "<<NormalizedTriple<<"\n";
-  // llvm::outs()<<"assemble mlisa mlu-arch is : "<<CudaArchToString(mlu_arch)<<"\n";
-  // llvm::outs()<<"assemble mlisa output file is : "<<CudaArchToString(mlu_arch)<<"\n";
   CmdArgs.push_back("--mcpu");
   CmdArgs.push_back(Args.MakeArgString(NormalizedTriple));
-  llvm::outs()<<"mlisa normalizedTriple is : "<<NormalizedTriple<<"\n";
   CmdArgs.push_back("--mlu-arch");
   CmdArgs.push_back(Args.MakeArgString(CudaArchToString(mlu_arch)));
   CmdArgs.push_back("--output");
@@ -518,7 +474,6 @@ void MLISA::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back(Args.MakeArgString("--device-only"));
   }
 
-  llvm::outs()<<"=============== MLISA::Linker get NormalizedTriple  ============\n";
   std::string NormalizedTriple =
     C.getSingleOffloadToolChain<Action::OFK_Host>()->getTriple().normalize();
 
@@ -605,7 +560,6 @@ void BangToolChain::addClangTargetOptions(
   HostTC.addClangTargetOptions(DriverArgs, CC1Args, DeviceOffloadingKind);
 
   StringRef GpuArch = DriverArgs.getLastArgValue(options::OPT_march_EQ);
-  llvm::outs()<<"Notice : Clang Target Options GpuArch is "<<GpuArch<<" !!!!!\n";
   assert(!GpuArch.empty() && "Must have an explicit GPU arch.");
   assert((DeviceOffloadingKind == Action::OFK_OpenMP ||
           DeviceOffloadingKind == Action::OFK_SYCL ||
@@ -639,13 +593,11 @@ void BangToolChain::addClangTargetOptions(
       SmallString<256> WithoutInstallPath(getDriver().ResourceDir);
       llvm::sys::path::append(WithoutInstallPath, Twine("../../clc"));
       LibraryPaths.emplace_back(WithoutInstallPath.c_str());
-      // llvm::outs()<<"WithoutInstallPath : "<<std::string(WithoutInstallPath.str())<<"\n";
 
       // Expected path w/ install.
       SmallString<256> WithInstallPath(getDriver().ResourceDir);
       llvm::sys::path::append(WithInstallPath, Twine("../../../share/clc"));
       LibraryPaths.emplace_back(WithInstallPath.c_str());
-      // llvm::outs()<<"WithInstallPath : "<<std::string(WithInstallPath.str())<<"\n";
 
       // Select remangled libclc variant
       std::string LibSpirvTargetName = getLibSpirvTargetName(HostTC);
@@ -687,6 +639,8 @@ void BangToolChain::addClangTargetOptions(
 
   CC1Args.push_back("-mlink-builtin-bitcode");
   CC1Args.push_back(DriverArgs.MakeArgString(LibDeviceFile));
+  llvm::outs()<<"MLISA LIBDEVICE PATH : "<<LibDeviceFile<<"\n";
+
 
     // Enable register allocation in LLVM only when compiling with -g option.
   // TODO(wangshiyu): close register allocation in LLVM.
