@@ -69,10 +69,12 @@ void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
   // llvm-foreach --in-file-list=a.list --in-replace='{}' -- echo '{}'
   ArgStringList ForeachArgs;
   std::string OutputFileName(T->getToolChain().getInputFilename(Output));
-  ForeachArgs.push_back(C.getArgs().MakeArgString("--out-ext=" + Ext));
+  
   const char* BaseInput = "";
   int flag = 0;
+  int has_key = 0;
   if(Ext.equals("cnfatbin")){
+    has_key = 1;
     for (auto &Arg : InputCommand->getArguments()){
       std::string arg(Arg);
       if(arg.find("--create")!= std::string::npos)
@@ -84,9 +86,15 @@ void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
         InputInfoList& inputInfos = const_cast<InputInfoList &>(InputFiles);
         inputInfos.clear();
         inputInfos.push_back(InputInfo(types::TY_CN_FATBIN,C.getArgs().MakeArgString(OutputFileName+".c"),BaseInput));
+        break;
         // inputInfos.push_back(InputInfo(types::TY_CN_FATBIN,C.getArgs().MakeArgString(OutputFileName),BaseInput));
       }
     }
+  }
+  if(has_key && flag){
+    ForeachArgs.push_back(C.getArgs().MakeArgString("--out-ext=" + Ext + ".c"));
+  }else{
+    ForeachArgs.push_back(C.getArgs().MakeArgString("--out-ext=" + Ext));
   }
   for (auto &I : InputFiles) {
     std::string Filename(T->getToolChain().getInputFilename(I));
@@ -96,10 +104,17 @@ void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
         C.getArgs().MakeArgString("--in-replace=" + Filename));
   }
 
-  ForeachArgs.push_back(
-      C.getArgs().MakeArgString("--out-file-list=" + OutputFileName));
-  ForeachArgs.push_back(
-      C.getArgs().MakeArgString("--out-replace=" + OutputFileName));
+  if(has_key && flag){
+    ForeachArgs.push_back(
+      C.getArgs().MakeArgString("--out-file-list=" + OutputFileName + ".c"));
+    ForeachArgs.push_back(
+      C.getArgs().MakeArgString("--out-replace=" + OutputFileName + ".c"));
+  }else{
+    ForeachArgs.push_back(
+        C.getArgs().MakeArgString("--out-file-list=" + OutputFileName));
+    ForeachArgs.push_back(
+        C.getArgs().MakeArgString("--out-replace=" + OutputFileName));
+  }
   if (!Increment.empty())
     ForeachArgs.push_back(
         C.getArgs().MakeArgString("--out-increment=" + Increment));
@@ -372,7 +387,7 @@ void SYCL::Linker::ConstructJob(Compilation &C, const JobAction &JA,
         continue;
       NvptxInputs.push_back(II);
     }
-    llvm::outs()<<"SYCL::Linker::ConstructJob  constructLLVMLinkCommand prefix for temporary file name is "<<Prefix<<"\n";
+    // llvm::outs()<<"SYCL::Linker::ConstructJob  constructLLVMLinkCommand prefix for temporary file name is "<<Prefix<<"\n";
     constructLLVMLinkCommand(C, JA, Output, Args, SubArchName, Prefix,
                              NvptxInputs);
     return;
@@ -922,7 +937,7 @@ void SYCLToolChain::TranslateGPUTargetOpt(const llvm::opt::ArgList &Args,
         parseTargetOpts(ArgString, Args, CmdArgs);
         A->claim();
       }
-      llvm::outs()<<"llvm SYCLToolChain::TranslateGPUTargetOpt Opt_EQ value : "<<A->getValue()<<"\n";
+      // llvm::outs()<<"llvm SYCLToolChain::TranslateGPUTargetOpt Opt_EQ value : "<<A->getValue()<<"\n";
     }
   }
 }

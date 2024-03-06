@@ -4,10 +4,9 @@ if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang|IntelLLVM" )
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-covered-switch-default")
 endif()
 
-message(STATUS "########## sycl enable plugins : ${SYCL_ENABLE_PLUGINS}")
-
 foreach(plugin ${SYCL_ENABLE_PLUGINS})
   add_subdirectory(${plugin})
+  message(STATUS "########## sycl_enable_plugin : ${plugin}")
 endforeach()
 
 # level_zero plugin depends today on unified_runtime plugin

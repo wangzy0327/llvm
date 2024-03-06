@@ -379,9 +379,9 @@ void MLISA::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
   llvm::outs()<<"=============== MLISA::Assembler get NormalizedTriple  ============\n";
   std::string NormalizedTriple =
     C.getSingleOffloadToolChain<Action::OFK_Host>()->getTriple().normalize();
-  llvm::outs()<<"assemble mlisa normalizedTriple is : "<<NormalizedTriple<<"\n";
-  llvm::outs()<<"assemble mlisa mlu-arch is : "<<CudaArchToString(mlu_arch)<<"\n";
-  llvm::outs()<<"assemble mlisa output file is : "<<CudaArchToString(mlu_arch)<<"\n";
+  // llvm::outs()<<"assemble mlisa normalizedTriple is : "<<NormalizedTriple<<"\n";
+  // llvm::outs()<<"assemble mlisa mlu-arch is : "<<CudaArchToString(mlu_arch)<<"\n";
+  // llvm::outs()<<"assemble mlisa output file is : "<<CudaArchToString(mlu_arch)<<"\n";
   CmdArgs.push_back("--mcpu");
   CmdArgs.push_back(Args.MakeArgString(NormalizedTriple));
   llvm::outs()<<"mlisa normalizedTriple is : "<<NormalizedTriple<<"\n";
@@ -639,13 +639,13 @@ void BangToolChain::addClangTargetOptions(
       SmallString<256> WithoutInstallPath(getDriver().ResourceDir);
       llvm::sys::path::append(WithoutInstallPath, Twine("../../clc"));
       LibraryPaths.emplace_back(WithoutInstallPath.c_str());
-      llvm::outs()<<"WithoutInstallPath : "<<std::string(WithoutInstallPath.str())<<"\n";
+      // llvm::outs()<<"WithoutInstallPath : "<<std::string(WithoutInstallPath.str())<<"\n";
 
       // Expected path w/ install.
       SmallString<256> WithInstallPath(getDriver().ResourceDir);
       llvm::sys::path::append(WithInstallPath, Twine("../../../share/clc"));
       LibraryPaths.emplace_back(WithInstallPath.c_str());
-      llvm::outs()<<"WithInstallPath : "<<std::string(WithInstallPath.str())<<"\n";
+      // llvm::outs()<<"WithInstallPath : "<<std::string(WithInstallPath.str())<<"\n";
 
       // Select remangled libclc variant
       std::string LibSpirvTargetName = getLibSpirvTargetName(HostTC);
