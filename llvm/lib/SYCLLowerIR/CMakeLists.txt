@@ -12,7 +12,8 @@ endif()
 # NOTE: could have been added earlier from llvm/projects
 if (NOT TARGET LLVMGenXIntrinsics)
   if (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
-    set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
+    # set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
+    set(LLVMGenXIntrinsics_GIT_REPO ssh://git@gitlab.gxnzx12729.ict:2222/wangziyang/vc-intrinsics.git)
     # Author: Victor Mustya <victor.mustya@intel.com>
     # Date:   Tue, 3 May 2022 17:56:40 +0000
     # Remove default switch labels for LSC-related functions
