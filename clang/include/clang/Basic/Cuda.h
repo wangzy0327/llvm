@@ -101,12 +101,19 @@ enum class CudaArch {
   GFX1101,
   GFX1102,
   GFX1103,
+  MLU100,
+  MLU220,
+  MLU270,
+  MLU290,
+  MLU370,           
+  MLU590,
   Generic, // A processor model named 'generic' if the target backend defines a
            // public one.
   LAST,
 
   CudaDefault = CudaArch::SM_35,
   HIPDefault = CudaArch::GFX803,
+  CNDefault = CudaArch::MLU270,
 };
 
 static inline bool IsNVIDIAGpuArch(CudaArch A) {
@@ -116,6 +123,11 @@ static inline bool IsNVIDIAGpuArch(CudaArch A) {
 static inline bool IsAMDGpuArch(CudaArch A) {
   // Generic processor model is for testing only.
   return A >= CudaArch::GFX600 && A < CudaArch::Generic;
+}
+
+static inline bool IsMLISAArch(CudaArch A) {
+  // Generic processor model is for testing only.
+  return A >= CudaArch::MLU270 && A < CudaArch::LAST;
 }
 
 const char *CudaArchToString(CudaArch A);

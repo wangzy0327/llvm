@@ -105,6 +105,16 @@ namespace clang {
   };
   }
 
+  /// MLISA builtins
+  namespace MLISA {
+  enum {
+    LastTIBuiltin = clang::Builtin::FirstTSBuiltin - 1,
+  #define BUILTIN(ID, TYPE, ATTRS) BI##ID,
+  #include "clang/Basic/BuiltinsMLISA.def"
+    LastTSBuiltin
+  };
+  }
+
   /// X86 builtins
   namespace X86 {
   enum {
