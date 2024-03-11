@@ -17,6 +17,7 @@ def do_configure(args):
 
     libclc_amd_target_names = ';amdgcn--;amdgcn--amdhsa'
     libclc_nvidia_target_names = 'nvptx64--;nvptx64--nvidiacl'
+    libclc_cambricon_target_names = ';mlisa--cambriconcl'
 
     if args.llvm_external_projects:
         llvm_external_projects += ";" + args.llvm_external_projects.replace(",", ";")
@@ -51,7 +52,7 @@ def do_configure(args):
     if args.enable_esimd_emulator:
         sycl_enabled_plugins.append("esimd_emulator")
 
-    if args.cuda or args.hip:
+    if args.cuda or args.hip or args.bang:
         llvm_enable_projects += ';libclc'
 
     if args.cuda:
@@ -75,10 +76,15 @@ def do_configure(args):
         sycl_build_pi_hip_platform = args.hip_platform
         sycl_enabled_plugins.append("hip")
 
+    if args.bang:
+        # llvm_targets_to_build += ';MLISA'
+        libclc_targets_to_build = libclc_cambricon_target_names
+        libclc_gen_remangled_variants = 'ON'
+        sycl_enabled_plugins.append("cnrt")
     # all llvm compiler targets don't require 3rd party dependencies, so can be
     # built/tested even if specific runtimes are not available
     if args.enable_all_llvm_targets:
-        llvm_targets_to_build += ';NVPTX;AMDGPU'
+        llvm_targets_to_build += ';NVPTX;AMDGPU;MLISA'
 
     if args.werror or args.ci_defaults:
         sycl_werror = 'ON'
@@ -117,6 +123,8 @@ def do_configure(args):
             libclc_targets_to_build += libclc_amd_target_names
         if libclc_nvidia_target_names not in libclc_targets_to_build:
             libclc_targets_to_build += libclc_nvidia_target_names
+        if libclc_cambricon_target_names not in libclc_targets_to_build:
+            libclc_targets_to_build += libclc_cambricon_target_names
 
     if args.enable_plugin:
         sycl_enabled_plugins += args.enable_plugin
@@ -213,6 +221,7 @@ def main():
     parser.add_argument("--cuda", action='store_true', help="switch from OpenCL to CUDA")
     parser.add_argument("--hip", action='store_true', help="switch from OpenCL to HIP")
     parser.add_argument("--hip-platform", type=str, choices=['AMD', 'NVIDIA'], default='AMD', help="choose hardware platform for HIP backend")
+    parser.add_argument("--bang", action='store_true', help="switch from OpenCL to Bang")
     parser.add_argument("--arm", action='store_true', help="build ARM support rather than x86")
     parser.add_argument("--enable-esimd-emulator", action='store_true', help="build with ESIMD emulation support")
     parser.add_argument("--enable-all-llvm-targets", action='store_true', help="build compiler with all supported targets, it doesn't change runtime build")
