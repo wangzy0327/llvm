@@ -950,6 +950,10 @@ def cuda_include_ptx_EQ : Joined<["--"], "cuda-include-ptx=">, Flags<[NoXarchOpt
   HelpText<"Include PTX for the following GPU architecture (e.g. sm_35) or 'all'. May be specified more than once.">;
 def no_cuda_include_ptx_EQ : Joined<["--"], "no-cuda-include-ptx=">, Flags<[NoXarchOption]>,
   HelpText<"Do not include PTX for the following GPU architecture (e.g. sm_35) or 'all'. May be specified more than once.">;
+def bang_include_mlisa_EQ : Joined<["--"], "bang_include_mlisa=">, Flags<[NoXarchOption]>,
+  HelpText<"Include MLISA for the following GPU architecture (e.g. mlisa) or 'all'. May be specified more than once.">;
+def no_bang_include_mlisa_EQ : Joined<["--"], "no-bang_include_mlisa=">, Flags<[NoXarchOption]>,
+  HelpText<"Do not include MLISA for the following GPU architecture (e.g. mlisa) or 'all'. May be specified more than once.">;
 def offload_arch_EQ : Joined<["--"], "offload-arch=">, Flags<[NoXarchOption]>,
   HelpText<"CUDA offloading device architecture (e.g. sm_35), or HIP offloading target ID in the form of a "
            "device architecture followed by target ID features delimited by a colon. Each target ID feature "

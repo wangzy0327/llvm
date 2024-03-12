@@ -105,6 +105,7 @@ public:
     OFK_Cuda = 0x02,
     OFK_OpenMP = 0x04,
     OFK_HIP = 0x08,
+    OFK_BANG = 0x0A,
     OFK_SYCL = 0x10
   };
 
