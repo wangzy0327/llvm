@@ -69,7 +69,31 @@ void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
   // llvm-foreach --in-file-list=a.list --in-replace='{}' -- echo '{}'
   ArgStringList ForeachArgs;
   std::string OutputFileName(Output.getFilename());
-  ForeachArgs.push_back(C.getArgs().MakeArgString("--out-ext=" + Ext));
+  const char* BaseInput = "";
+  int flag = 0;
+  int has_key = 0;
+  if(Ext.equals("cnfatbin")){
+    has_key = 1;
+    for (auto &Arg : InputCommand->getArguments()){
+      std::string arg(Arg);
+      if(arg.find("--create")!= std::string::npos)
+        flag = 1;
+      if(arg.find(".cnfatbin.c") != std::string::npos && !flag){
+        const InputInfo &firstInput = InputFiles.front();
+        BaseInput = firstInput.getBaseInput();
+        InputInfoList& inputInfos = const_cast<InputInfoList &>(InputFiles);
+        inputInfos.clear();
+        inputInfos.push_back(InputInfo(types::TY_CN_FATBIN,C.getArgs().MakeArgString(OutputFileName+".c"),BaseInput));
+        break;
+        // inputInfos.push_back(InputInfo(types::TY_CN_FATBIN,C.getArgs().MakeArgString(OutputFileName),BaseInput));
+      }
+    }
+  }
+  if(has_key && flag){
+    ForeachArgs.push_back(C.getArgs().MakeArgString("--out-ext=" + Ext + ".c"));
+  }else{
+    ForeachArgs.push_back(C.getArgs().MakeArgString("--out-ext=" + Ext));
+  }
   for (auto &I : InputFiles) {
     std::string Filename(I.getFilename());
     ForeachArgs.push_back(
@@ -77,11 +101,17 @@ void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
     ForeachArgs.push_back(
         C.getArgs().MakeArgString("--in-replace=" + Filename));
   }
-
-  ForeachArgs.push_back(
-      C.getArgs().MakeArgString("--out-file-list=" + OutputFileName));
-  ForeachArgs.push_back(
-      C.getArgs().MakeArgString("--out-replace=" + OutputFileName));
+  if(has_key && flag){
+    ForeachArgs.push_back(
+      C.getArgs().MakeArgString("--out-file-list=" + OutputFileName + ".c"));
+    ForeachArgs.push_back(
+      C.getArgs().MakeArgString("--out-replace=" + OutputFileName + ".c"));
+  }else{
+    ForeachArgs.push_back(
+        C.getArgs().MakeArgString("--out-file-list=" + OutputFileName));
+    ForeachArgs.push_back(
+        C.getArgs().MakeArgString("--out-replace=" + OutputFileName));
+  }
   if (!Increment.empty())
     ForeachArgs.push_back(
         C.getArgs().MakeArgString("--out-increment=" + Increment));

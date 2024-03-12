@@ -148,6 +148,10 @@ forAllAssociatedToolChains(Compilation &C, const JobAction &JA,
     Work(*C.getSingleOffloadToolChain<Action::OFK_HIP>());
   else if (JA.isDeviceOffloading(Action::OFK_HIP))
     Work(*C.getSingleOffloadToolChain<Action::OFK_Host>());
+  else if (JA.isHostOffloading(Action::OFK_BANG))
+    Work(*C.getSingleOffloadToolChain<Action::OFK_BANG>());
+  else if (JA.isDeviceOffloading(Action::OFK_BANG))
+    Work(*C.getSingleOffloadToolChain<Action::OFK_Host>());     
 
   if (JA.isHostOffloading(Action::OFK_OpenMP)) {
     auto TCs = C.getOffloadToolChains<Action::OFK_OpenMP>();
@@ -517,7 +521,8 @@ static bool ShouldEnableAutolink(const ArgList &Args, const ToolChain &TC,
   }
   // The linker_option directives are intended for host compilation.
   if (JA.isDeviceOffloading(Action::OFK_Cuda) ||
-      JA.isDeviceOffloading(Action::OFK_HIP))
+      JA.isDeviceOffloading(Action::OFK_HIP) ||
+      JA.isDeviceOffloading(Action::OFK_BANG))
     Default = false;
   return Args.hasFlag(options::OPT_fautolink, options::OPT_fno_autolink,
                       Default);
@@ -1395,6 +1400,8 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
     getToolChain().AddCudaIncludeArgs(Args, CmdArgs);
   if (JA.isOffloading(Action::OFK_HIP))
     getToolChain().AddHIPIncludeArgs(Args, CmdArgs);
+  if (JA.isOffloading(Action::OFK_BANG))
+    getToolChain().AddBANGIncludeArgs(Args, CmdArgs);     
 
   if (JA.isOffloading(Action::OFK_SYCL))
     toolchains::SYCLToolChain::AddSYCLIncludeArgs(D, Args, CmdArgs);
@@ -1404,7 +1411,8 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
   if (JA.isDeviceOffloading(Action::OFK_OpenMP) &&
       !Args.hasArg(options::OPT_nostdinc) &&
       (getToolChain().getTriple().isNVPTX() ||
-       getToolChain().getTriple().isAMDGCN())) {
+       getToolChain().getTriple().isAMDGCN() ||
+       getToolChain().getTriple().isMLISA())) {
     if (!Args.hasArg(options::OPT_nobuiltininc)) {
       // Add openmp_wrappers/* to our system include path.  This lets us wrap
       // standard library headers.
@@ -2874,7 +2882,8 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
   // If one wasn't given by the user, don't pass it here.
   StringRef FPContract;
   if (!JA.isDeviceOffloading(Action::OFK_Cuda) &&
-      !JA.isOffloading(Action::OFK_HIP))
+      !JA.isOffloading(Action::OFK_HIP) &&
+      !JA.isOffloading(Action::OFK_BANG))
     FPContract = "on";
   bool StrictFPModel = false;
 
@@ -4704,6 +4713,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   bool IsCudaDevice = JA.isDeviceOffloading(Action::OFK_Cuda);
   bool IsHIP = JA.isOffloading(Action::OFK_HIP);
   bool IsHIPDevice = JA.isDeviceOffloading(Action::OFK_HIP);
+  bool IsBang = JA.isOffloading(Action::OFK_BANG);
+  bool IsBangDevice = JA.isDeviceOffloading(Action::OFK_BANG);  
   bool IsOpenMPDevice = JA.isDeviceOffloading(Action::OFK_OpenMP);
   bool IsSYCLOffloadDevice = JA.isDeviceOffloading(Action::OFK_SYCL);
   bool IsSYCL = JA.isOffloading(Action::OFK_SYCL);
@@ -4782,7 +4793,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       ExtractAPIInputs.push_back(I);
     } else if (IsHostOffloadingAction) {
       HostOffloadingInputs.push_back(I);
-    } else if ((IsCuda || IsHIP) && !CudaDeviceInput) {
+    } else if ((IsCuda || IsHIP || IsBang) && !CudaDeviceInput) {
       CudaDeviceInput = &I;
     } else if (IsOpenMPDevice && !OpenMPDeviceInput) {
       OpenMPDeviceInput = &I;
@@ -4792,16 +4803,40 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       llvm_unreachable("unexpectedly given multiple inputs");
     }
   }
+  //Since Cambrian does not provide llvm/lib backend related files, you need to use llvm-mm/bin/llc to compile IR to assembly language.
+  if(IsSYCL && JA.getType() == types::TY_PP_Asm && Triple.isMLISA()){
+    SmallString<128> LlcPath("/usr/local/neuware/lib/llvm-mm/bin");
+    llvm::sys::path::append(LlcPath, "llc");
+    // Construct llc command.
+    // The output is an object file
+    ArgStringList LlcArgs{"-filetype=asm","--march=mlisa"};
+    StringRef deviceOffload = JA.getOffloadingArch();
+    std::string devOff = std::string(deviceOffload);
+    LlcArgs.push_back(Args.MakeArgString("--mcpu="+deviceOffload));
+    LlcArgs.push_back("-o");
+    LlcArgs.push_back(Output.getFilename());
+    for (const auto &II : Inputs) {
+      addDashXForInput(Args, II, LlcArgs);
+      if (II.isFilename())
+        LlcArgs.push_back(II.getFilename());
+      else
+        II.getInputArg().renderAsInput(Args, LlcArgs);
+    }
+    const char *Llc = C.getArgs().MakeArgString(LlcPath);
+    C.addCommand(std::make_unique<Command>(
+         JA, *this, ResponseFileSupport::None(), Llc, LlcArgs, None));
+    return;
+  }
 
   const llvm::Triple *AuxTriple =
-      (IsSYCL || IsCuda || IsHIP) ? TC.getAuxTriple() : nullptr;
+      (IsSYCL || IsCuda || IsHIP || IsBang) ? TC.getAuxTriple() : nullptr;
   bool IsWindowsMSVC = RawTriple.isWindowsMSVCEnvironment();
   bool IsIAMCU = RawTriple.isOSIAMCU();
 
   // Adjust IsWindowsXYZ for CUDA/HIP/SYCL compilations.  Even when compiling in
   // device mode (i.e., getToolchain().getTriple() is NVPTX/AMDGCN, not
   // Windows), we need to pass Windows-specific flags to cc1.
-  if (IsCuda || IsHIP || IsSYCL)
+  if (IsCuda || IsHIP || IsBang || IsSYCL)
     IsWindowsMSVC |= AuxTriple && AuxTriple->isWindowsMSVCEnvironment();
 
   // C++ is not supported for IAMCU.
@@ -5019,6 +5054,37 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
           CmdArgs.push_back("-D_DLL");
         }
       }
+    }
+    // Add any predefined macros associated with intel_gpu* type targets
+    // passed in with -fsycl-targets
+    // TODO: Macros are populated during device compilations and saved for
+    // addition to the host compilation. There is no dependence connection
+    // between device and host where we should be able to use the offloading
+    // arch to add the macro to the host compile.
+    auto addTargetMacros = [&](const llvm::Triple &Triple) {
+      if (!Triple.isSPIR() && !Triple.isNVPTX() && !Triple.isAMDGCN() && !Triple.isMLISA())
+        return;
+      SmallString<64> Macro;
+      if ((Triple.isSPIR() &&
+           Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen) ||
+          Triple.isNVPTX() || Triple.isAMDGCN() || Triple.isMLISA()) {
+        StringRef Device = JA.getOffloadingArch();
+        if (!Device.empty()) {
+          Macro = "-D";
+          Macro += SYCL::gen::getGenDeviceMacro(Device);
+        }
+      } else if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
+        Macro = "-D__SYCL_TARGET_INTEL_X86_64__";
+      if (Macro.size()) {
+        CmdArgs.push_back(Args.MakeArgString(Macro));
+        D.addSYCLTargetMacroArg(Args, Macro);
+      }
+    };
+    if (IsSYCLOffloadDevice)
+      addTargetMacros(RawTriple);
+    else {
+      for (auto &Macro : D.getSYCLTargetMacroArgs())
+        CmdArgs.push_back(Args.MakeArgString(Macro));
     }
   }
 
@@ -5821,7 +5887,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // Prepare `-aux-target-cpu` and `-aux-target-feature` unless
   // `--gpu-use-aux-triple-only` is specified.
   if (!Args.getLastArg(options::OPT_gpu_use_aux_triple_only) &&
-      (IsCudaDevice || (IsSYCL && IsSYCLOffloadDevice) || IsHIPDevice)) {
+      (IsCudaDevice || (IsSYCL && IsSYCLOffloadDevice) || IsHIPDevice || IsBangDevice)) {
     const ArgList &HostArgs =
         C.getArgsForToolChain(nullptr, StringRef(), Action::OFK_None);
     std::string HostCPU =
@@ -6060,7 +6126,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // for sampling, overhead of call arc collection is way too high and there's
   // no way to collect the output.
   // Disable for SPIR-V compilations as well.
-  if (!Triple.isNVPTX() && !Triple.isAMDGCN() && !Triple.isSPIR())
+  if (!Triple.isNVPTX() && !Triple.isAMDGCN() && !Triple.isMLISA() && !Triple.isSPIR())
     addPGOAndCoverageFlags(TC, C, D, Output, Args, SanitizeArgs, CmdArgs);
 
   Args.AddLastArg(CmdArgs, options::OPT_fclang_abi_compat_EQ);
@@ -6797,7 +6863,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // Forward -f options with positive and negative forms; we translate these by
   // hand.  Do not propagate PGO options to the GPU-side compilations as the
   // profile info is for the host-side compilation only.
-  if (!(IsCudaDevice || IsHIPDevice)) {
+  if (!(IsCudaDevice || IsHIPDevice || IsBangDevice)) {
     if (Arg *A = getLastProfileSampleUseArg(Args)) {
       auto *PGOArg = Args.getLastArg(
           options::OPT_fprofile_generate, options::OPT_fprofile_generate_EQ,
@@ -7457,7 +7523,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-fcuda-short-ptr");
   }
 
-  if (IsCuda || IsHIP) {
+  if (IsCuda || IsHIP || IsBang) {
     // Determine the original source input.
     const Action *SourceAction = &JA;
     while (SourceAction->getKind() != Action::InputClass) {
@@ -7474,7 +7540,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     Args.AddLastArg(CmdArgs, options::OPT_fgpu_default_stream_EQ);
   }
 
-  if (IsCudaDevice || IsHIPDevice || IsSYCLOffloadDevice) {
+  if (IsCudaDevice || IsHIPDevice || IsBangDevice || IsSYCLOffloadDevice) {
     StringRef InlineThresh =
         Args.getLastArgValue(options::OPT_fgpu_inline_threshold_EQ);
     if (!InlineThresh.empty()) {
@@ -8652,6 +8718,7 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
     Triples += '-';
     Triples += CurTC->getTriple().normalize();
     if ((CurKind == Action::OFK_HIP || CurKind == Action::OFK_OpenMP ||
+         CurKind == Action::OFK_BANG ||
          CurKind == Action::OFK_Cuda || CurKind == Action::OFK_SYCL) &&
         !StringRef(CurDep->getOffloadingArch()).empty()) {
       Triples += '-';
@@ -8832,6 +8899,7 @@ void OffloadBundler::ConstructJobMultipleOutputs(
     if ((Dep.DependentOffloadKind == Action::OFK_HIP ||
          Dep.DependentOffloadKind == Action::OFK_OpenMP ||
          Dep.DependentOffloadKind == Action::OFK_Cuda ||
+         Dep.DependentOffloadKind == Action::OFK_BANG ||
          Dep.DependentOffloadKind == Action::OFK_SYCL) &&
         !Dep.DependentBoundArch.empty()) {
       Triples += '-';

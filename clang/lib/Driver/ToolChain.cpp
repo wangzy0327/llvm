@@ -1174,6 +1174,9 @@ void ToolChain::AddCudaIncludeArgs(const ArgList &DriverArgs,
 void ToolChain::AddHIPIncludeArgs(const ArgList &DriverArgs,
                                   ArgStringList &CC1Args) const {}
 
+void ToolChain::AddBANGIncludeArgs(const ArgList &DriverArgs,
+                                  ArgStringList &CC1Args) const {}                                  
+
 llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 12>
 ToolChain::getHIPDeviceLibs(
     const ArgList &DriverArgs,
@@ -1425,7 +1428,7 @@ llvm::opt::DerivedArgList *ToolChain::TranslateXarchArgs(
   DerivedArgList *DAL = new DerivedArgList(Args.getBaseArgs());
   bool Modified = false;
 
-  bool IsGPU = OFK == Action::OFK_Cuda || OFK == Action::OFK_HIP;
+  bool IsGPU = OFK == Action::OFK_Cuda || OFK == Action::OFK_HIP || OFK == Action::OFK_BANG;
   for (Arg *A : Args) {
     bool NeedTrans = false;
     bool Skip = false;

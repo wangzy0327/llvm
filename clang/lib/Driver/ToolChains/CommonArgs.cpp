@@ -16,6 +16,7 @@
 #include "Arch/VE.h"
 #include "Arch/X86.h"
 #include "HIPAMD.h"
+#include "ToolChains/Bang.h"
 #include "Hexagon.h"
 #include "clang/Basic/CharInfo.h"
 #include "clang/Basic/LangOptions.h"
@@ -477,6 +478,13 @@ std::string tools::getCPUName(const Driver &D, const ArgList &Args,
   case llvm::Triple::r600:
   case llvm::Triple::amdgcn:
     return getAMDGPUTargetGPU(T, Args);
+  case llvm::Triple::mlisa: {
+    const Arg *A = Args.getLastArg(options::OPT_march_EQ);
+    std::string gpuName;
+    if (A)
+      gpuName = A->getValue();
+    return gpuName;
+  }    
 
   case llvm::Triple::wasm32:
   case llvm::Triple::wasm64:
