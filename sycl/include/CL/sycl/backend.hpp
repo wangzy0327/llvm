@@ -27,6 +27,9 @@
 #if SYCL_EXT_ONEAPI_BACKEND_HIP
 #include <CL/sycl/detail/backend_traits_hip.hpp>
 #endif
+#if SYCL_EXT_ONEAPI_BACKEND_CNRT
+#include <CL/sycl/detail/backend_traits_cnrt.hpp>
+#endif
 #if SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO
 #include <CL/sycl/detail/backend_traits_level_zero.hpp>
 #endif

@@ -15,7 +15,7 @@
 
 #define __SPIRV_VAR_QUALIFIERS extern "C" const
 
-#if defined(__NVPTX__) || defined(__AMDGCN__)
+#if defined(__NVPTX__) || defined(__AMDGCN__) || defined(__MLISA__)
 
 SYCL_EXTERNAL size_t __spirv_GlobalInvocationId_x();
 SYCL_EXTERNAL size_t __spirv_GlobalInvocationId_y();
