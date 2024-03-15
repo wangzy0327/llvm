@@ -20,8 +20,8 @@ endif()
 
 add_sycl_plugin(cnrt
   SOURCES
-    "${sycl_inc_dir}/sycl/detail/pi.h"
-    "${sycl_inc_dir}/sycl/detail/pi.hpp"
+    "${sycl_inc_dir}/CL/sycl/detail/pi.h"
+    "${sycl_inc_dir}/CL/sycl/detail/pi.hpp"
     "pi_cnrt.hpp"
     "pi_cnrt.cpp"
     # "tracing.cpp"

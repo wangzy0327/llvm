@@ -408,6 +408,18 @@ if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libspirv-builtins pi_hip)
 endif()
 
+if("cnrt" IN_LIST SYCL_ENABLE_PLUGINS)
+  # Ensure that libclc is enabled.
+  list(FIND LLVM_ENABLE_PROJECTS libclc LIBCLC_FOUND)
+  if( LIBCLC_FOUND EQUAL -1 )
+    message(FATAL_ERROR
+      "CNRT support requires adding \"libclc\" to the CMake argument \"LLVM_ENABLE_PROJECTS\"")
+  endif()
+
+  add_dependencies(sycl-toolchain libspirv-builtins pi_cnrt)
+  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libspirv-builtins pi_cnrt)
+endif()
+
 if("esimd_emulator" IN_LIST SYCL_ENABLE_PLUGINS)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS pi_esimd_emulator libcmrt-headers)
   if (MSVC)
