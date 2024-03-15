@@ -106,6 +106,7 @@ public:
     renderscript64, // 64-bit RenderScript
     fpga,           // Intel FPGA
     ve,             // NEC SX-Aurora Vector Engine
+    mlisa,          // Cambricon ISA
     LastArchType = ve
   };
   enum SubArchType {
