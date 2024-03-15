@@ -183,6 +183,7 @@ public:
     Mesa,
     SUSE,
     OpenEmbedded,
+    Cambricon,    
     LastVendorType = OpenEmbedded
   };
   enum OSType {
@@ -226,6 +227,7 @@ public:
     WASI,       // Experimental WebAssembly OS
     Emscripten,
     ShaderModel, // DirectX ShaderModel
+    BANG,        // Cambricon BANG    
     LastOSType = ShaderModel
   };
   enum EnvironmentType {
@@ -749,6 +751,9 @@ public:
 
   /// Tests whether the target is AMDGCN
   bool isAMDGCN() const { return getArch() == Triple::amdgcn; }
+
+  /// Tests whether the target is MLISA
+  bool isMLISA() const {return getArch() == Triple::mlisa;}
 
   bool isAMDGPU() const {
     return getArch() == Triple::r600 || getArch() == Triple::amdgcn;

@@ -1143,7 +1143,7 @@ struct InformationCache {
 
   /// Return true if the target is a GPU.
   bool targetIsGPU() {
-    return TargetTriple.isAMDGPU() || TargetTriple.isNVPTX();
+    return TargetTriple.isAMDGPU() || TargetTriple.isNVPTX() || TargetTriple.isMLISA();;
   }
 
 private:

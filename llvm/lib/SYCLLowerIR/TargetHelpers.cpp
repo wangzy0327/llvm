@@ -29,6 +29,7 @@ ArchType getArchType(const Module &M) {
       .Case("nvptx-nvidia-cuda", ArchType::Cuda)
       .Case("amdgcn-amd-amdhsa", ArchType::AMDHSA)
       .Case("amdgcn--amdhsa", ArchType::AMDHSA)
+      .Case("mlisa-cambricon-bang", ArchType::BANG)      
       .Default(ArchType::Unsupported);
 }
 
@@ -40,6 +41,9 @@ std::string getAnnotationString(ArchType AT) {
   case TargetHelpers::ArchType::AMDHSA:
     return std::string("amdgcn.annotations");
     break;
+  case TargetHelpers::ArchType::BANG:
+    return std::string("bang.annotations");
+    break;    
   default:
     llvm_unreachable("Unsupported arch type.");
   }

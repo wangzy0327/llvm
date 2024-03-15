@@ -1164,7 +1164,7 @@ struct AAPointerInfoImpl
     // globals on AMD and NVIDIA GPUs.
     auto HasKernelLifetime = [&](Value *V, Module &M) {
       Triple T(M.getTargetTriple());
-      if (!(T.isAMDGPU() || T.isNVPTX()))
+      if (!(T.isAMDGPU() || T.isNVPTX() || T.isMLISA()))
         return false;
       switch (V->getType()->getPointerAddressSpace()) {
       case GPUAddressSpace::Shared:
