@@ -20,5 +20,7 @@ llvm::Error wrapOpenMPBinaries(llvm::Module &M,
 /// Wraps the input fatbinary image into the module \p M as global symbols and
 /// registers the images with the CUDA runtime.
 llvm::Error wrapCudaBinary(llvm::Module &M, llvm::ArrayRef<char> Images);
-
+/// Wraps the input bundled image into the module \p M as global symbols and
+/// registers the images with the BANG runtime.
+llvm::Error wrapBANGBinary(llvm::Module &M, llvm::ArrayRef<char> Images);
 #endif
