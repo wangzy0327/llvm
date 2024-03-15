@@ -83,6 +83,9 @@ filter create_filter(const std::string &Input) {
     } else if (Token == "hip" && !Result.HasBackend) {
       Result.Backend = backend::ext_oneapi_hip;
       Result.HasBackend = true;
+    }else if (Token == "cnrt" && !Result.Backend) {
+      Result.Backend = backend::ext_oneapi_cnrt;
+      Result.HasBackend = true;
     } else if (Token == "host") {
       if (!Result.HasBackend) {
         Result.Backend = backend::host;
