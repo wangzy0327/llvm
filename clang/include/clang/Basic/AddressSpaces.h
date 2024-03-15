@@ -49,6 +49,7 @@ enum class LangAS : unsigned {
   sycl_global_device,
   sycl_global_host,
   sycl_local,
+  sycl_wram,
   sycl_private,
 
   // Pointer size and extension address spaces.
