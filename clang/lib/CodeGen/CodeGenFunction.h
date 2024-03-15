@@ -4247,6 +4247,7 @@ public:
   llvm::Value *EmitAMDGPUBuiltinExpr(unsigned BuiltinID, const CallExpr *E);
   llvm::Value *EmitSystemZBuiltinExpr(unsigned BuiltinID, const CallExpr *E);
   llvm::Value *EmitNVPTXBuiltinExpr(unsigned BuiltinID, const CallExpr *E);
+  llvm::Value *EmitMLISABuiltinExpr(unsigned BuiltinID, const CallExpr *E);
   llvm::Value *EmitWebAssemblyBuiltinExpr(unsigned BuiltinID,
                                           const CallExpr *E);
   llvm::Value *EmitHexagonBuiltinExpr(unsigned BuiltinID, const CallExpr *E);
