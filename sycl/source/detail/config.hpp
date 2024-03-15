@@ -142,7 +142,7 @@ public:
                                                         // compatibility
          {"PI_CUDA", backend::ext_oneapi_cuda},
          {"PI_ESIMD_EMULATOR", backend::ext_intel_esimd_emulator},
-         {"PI_HIP", backend::ext_oneapi_hip}
+         {"PI_HIP", backend::ext_oneapi_hip},
          {"PI_CNRT", backend::ext_oneapi_cnrt}}};
     if (ValStr) {
       auto It = std::find_if(
