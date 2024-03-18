@@ -551,11 +551,11 @@ Error wrapCudaBinary(Module &M, ArrayRef<char> Image) {
   return Error::success();
 }
 Error wrapBANGBinary(Module &M, ArrayRef<char> Image) {
-  GlobalVariable *Desc = createFatbinDesc(M, Image, /* IsBANG */ false);
+  GlobalVariable *Desc = createFatbinDesc(M, Image /* IsBANG */ );
   if (!Desc)
     return createStringError(inconvertibleErrorCode(),
                              "No fatinbary section created.");
 
-  createRegisterFatbinFunction(M, Desc, /* IsBANG */ false);
+  createRegisterFatbinFunction(M, Desc /* IsBANG */);
   return Error::success();
 }

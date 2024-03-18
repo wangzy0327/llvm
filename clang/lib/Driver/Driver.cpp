@@ -163,14 +163,14 @@ getHIPOffloadTargetTriple(const Driver &D, const ArgList &Args) {
   return llvm::None;
 }
 
-static std::optional<llvm::Triple>
+static llvm::Optional<llvm::Triple>
 getCNOffloadTargetTriple(const Driver &D, const ArgList &Args) {
   if (!Args.hasArg(options::OPT_offload_EQ)) {
     return llvm::Triple("mlisa-cambricon-bang"); // Default CN triple.
   }
   auto TT = getOffloadTargetTriple(D, Args);
   if (!TT)
-    return std::nullopt;
+    return llvm::None;
   if (TT->getArch() == llvm::Triple::mlisa &&
       TT->getVendor() == llvm::Triple::Cambricon &&
       TT->getOS() == llvm::Triple::BANG)
@@ -178,7 +178,7 @@ getCNOffloadTargetTriple(const Driver &D, const ArgList &Args) {
   if (TT->getArch() == llvm::Triple::spirv64)
     return TT;
   D.Diag(diag::err_drv_invalid_or_unsupported_offload_target) << TT->str();
-  return std::nullopt;
+  return llvm::None;
 }
 
 // static
@@ -4246,18 +4246,16 @@ class OffloadingActionBuilder final {
     // Bundle code objects except --no-gpu-output is specified for device
     // only compilation. Bundle other type of output files only if
     // --gpu-bundle-output is specified for device only compilation.
-    std::optional<bool> BundleOutput;
-
+    Optional<bool> BundleOutput;
   public:
     CNActionBuilder(Compilation &C, DerivedArgList &Args,
-                     const Driver::InputList &Inputs,
-                     OffloadingActionBuilder &OAB)
-        : CudaActionBuilderBase(C, Args, Inputs, Action::OFK_BANG, OAB) {
+                     const Driver::InputList &Inputs)
+        : CudaActionBuilderBase(C, Args, Inputs, Action::OFK_BANG) {
       DefaultCudaArch = CudaArch::MLU270;
       if (Args.hasArg(options::OPT_gpu_bundle_output,
                       options::OPT_no_gpu_bundle_output))
         BundleOutput = Args.hasFlag(options::OPT_gpu_bundle_output,
-                                    options::OPT_no_gpu_bundle_output, true);
+                                    options::OPT_no_gpu_bundle_output, true);      
     }
 
     bool canUseBundlerUnbundler() const override { return true; }
@@ -4271,10 +4269,10 @@ class OffloadingActionBuilder final {
       return CudaArchToString(Arch);
     };
 
-    std::optional<std::pair<llvm::StringRef, llvm::StringRef>>
+    llvm::Optional<std::pair<llvm::StringRef, llvm::StringRef>>
     getConflictOffloadArchCombination(
         const std::set<StringRef> &GpuArchs) override {
-      return getConflictTargetIDCombination(GpuArchs);
+      return llvm::None;
     }
 
     ActionBuilderReturnCode
@@ -4374,25 +4372,11 @@ class OffloadingActionBuilder final {
                                            "before the backend phase!");
 
       // By default, we produce an action for each device arch.
-      for (unsigned I = 0, E = GpuArchList.size(); I != E; ++I) {
-
-        CudaDeviceActions[I] = C.getDriver().ConstructPhaseAction(
-            C, Args, CurPhase, CudaDeviceActions[I]);
-
-        if (CurPhase == phases::Compile) {
-          OffloadAction::DeviceDependences DDep;
-          DDep.add(*CudaDeviceActions[I], *ToolChains.front(), GpuArchList[I],
-                   Action::OFK_BANG);
-
-          OffloadingActionBuilderRef.pushForeignAction(
-              C.MakeAction<OffloadAction>(
-                  DDep, DDep.getActions().front()->getType()));
-        }
-      }
-
+      for (Action *&A : CudaDeviceActions)
+        A = C.getDriver().ConstructPhaseAction(C, Args, CurPhase, A);
       return ABRT_Success;
     }
-  }
+  };
 
   /// OpenMP action builder. The host bitcode is passed to the device frontend
   /// and all the device linked images are passed to the host link phase.
@@ -5484,7 +5468,7 @@ class OffloadingActionBuilder final {
               C.getDriver().Diag(clang::diag::err_drv_bad_target_id) << ArchStr;
               continue;
             }
-            auto CanId = getCanonicalTargetID(Arch.value(), Features);
+            auto CanId = getCanonicalTargetID(Arch.getValue(), Features);
             ArchStr = Args.MakeArgStringRef(CanId);
           }
           ParsedArg->claim();
@@ -6766,7 +6750,7 @@ static StringRef getCanonicalArchString(Compilation &C,
       C.setContainsError();
       return StringRef();
     }
-    return Args.MakeArgStringRef(getCanonicalTargetID(*Arch, Features));
+    return Args.MakeArgStringRef(getCanonicalTargetID(Arch.getValue(), Features));
   }
 
   // If the input isn't CUDA or HIP just return the architecture.

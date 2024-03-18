@@ -590,36 +590,36 @@ Expected<std::string> fatbinary(ArrayRef<StringRef> InputFiles,
 } // namespace nvptx
 
 namespace mlisa {
-Expected<StringRef> assemble(StringRef InputFile, const ArgList &Args,
-                             bool RDC = true) {
+Expected<StringRef> assemble(StringRef InputFile, Triple TheTriple,
+                             StringRef Arch, bool RDC = true) {
   llvm::TimeTraceScope TimeScope("MLISA Assembler");
   // CNAS uses the cnas binary to create device object files.
   Expected<std::string> CnasPath = findProgram("cnas", {CudaBinaryPath});
   if (!CnasPath)
     return CnasPath.takeError();
 
-  const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
-  StringRef Arch = Args.getLastArgValue(OPT_arch_EQ);
-  // Create a new file to write the linked device image to. Assume that the
-  // input filename already has the device and architecture.
-  auto TempFileOrErr = createOutputFile(sys::path::stem(InputFile), "cnfatbin");
-  if (!TempFileOrErr)
-    return TempFileOrErr.takeError();
+  // Create a new file to write the linked device image to.
+  SmallString<128> TempFile;
+  if (Error Err =
+          createOutputFile(sys::path::filename(ExecutableName) + "-device-" +
+                               TheTriple.getArchName() + "-" + Arch,
+                           "cnfatbin", TempFile))
+    return std::move(Err);
 
   SmallVector<StringRef, 16> CmdArgs;
-  StringRef OptLevel = Args.getLastArgValue(OPT_opt_level, "O2");
+  std::string Opt = "-" + OptLevel;
   CmdArgs.push_back(*CnasPath);
   if (Verbose)
     CmdArgs.push_back("-v");
+  if (DebugInfo == DirectivesOnly && OptLevel[1] == '0')
+    CmdArgs.push_back("-lineinfo");
+  else if (DebugInfo == FullDebugInfo && OptLevel[1] == '0')
+    CmdArgs.push_back("-g");    
   CmdArgs.push_back("-o");
-  CmdArgs.push_back(*TempFileOrErr);
-  CmdArgs.push_back(Args.MakeArgString("-" + OptLevel));
+  CmdArgs.push_back(TempFile);
+  CmdArgs.push_back(Opt);
   CmdArgs.push_back("--mlu-arch");
   CmdArgs.push_back(Arch);
-  if (Args.hasArg(OPT_debug) && OptLevel[1] == '0')
-    CmdArgs.push_back("-g");
-  else if (Args.hasArg(OPT_debug))
-    CmdArgs.push_back("-lineinfo");
   if (RDC)
     CmdArgs.push_back("-c");
 
@@ -628,35 +628,33 @@ Expected<StringRef> assemble(StringRef InputFile, const ArgList &Args,
   if (Error Err = executeCommands(*CnasPath, CmdArgs))
     return std::move(Err);
 
-  return *TempFileOrErr;
+  return static_cast<std::string>(TempFile);
 }
 
-Expected<StringRef> link(ArrayRef<StringRef> InputFiles, const ArgList &Args) {
+Expected<StringRef> link(ArrayRef<StringRef> InputFiles, Triple TheTriple,
+                         StringRef Arch) {
   llvm::TimeTraceScope TimeScope("MLISA linker");
   // MLISA uses the cncc binary to link device object files.
   Expected<std::string> CNlinkPath = findProgram("cncc", {CudaBinaryPath});
   if (!CNlinkPath)
     return CNlinkPath.takeError();
 
-  const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
-  StringRef Arch = Args.getLastArgValue(OPT_arch_EQ);
-
   // Create a new file to write the linked device image to.
-  auto TempFileOrErr =
-      createOutputFile(sys::path::filename(ExecutableName) + "-device-" +
-                           Triple.getArchName() + "-" + Arch,
-                       "out");
-  if (!TempFileOrErr)
-    return TempFileOrErr.takeError();
+  SmallString<128> TempFile;
+  if (Error Err =
+          createOutputFile(sys::path::filename(ExecutableName) + "-device-" +
+                               TheTriple.getArchName() + "-" + Arch,
+                           "out", TempFile))
+    return std::move(Err);
 
   SmallVector<StringRef, 16> CmdArgs;
   CmdArgs.push_back(*CNlinkPath);
-  if (Args.hasArg(OPT_debug))
+  if (DebugInfo != NoDebugInfo)
     CmdArgs.push_back("-g");
   if (Verbose)
     CmdArgs.push_back("-v");
   CmdArgs.push_back("-o");
-  CmdArgs.push_back(*TempFileOrErr);
+  CmdArgs.push_back(TempFile);
   CmdArgs.push_back("-aux-triple");
   CmdArgs.push_back("mlisa-cambricon-bang");
   CmdArgs.push_back("-aux-triple-cpu");
@@ -670,12 +668,11 @@ Expected<StringRef> link(ArrayRef<StringRef> InputFiles, const ArgList &Args) {
   for (StringRef Input : InputFiles)
     CmdArgs.push_back(Input);
 
-  for (StringRef Arg : Args.getAllArgValues(OPT_linker_arg_EQ))
-    CmdArgs.push_back(Args.MakeArgString(Arg));
+  renderXLinkerArgs(CmdArgs, TheTriple.getTriple());
   if (Error Err = executeCommands(*CNlinkPath, CmdArgs))
     return std::move(Err);
 
-  return *TempFileOrErr;
+  return static_cast<std::string>(TempFile);
 }
 } // namespace mlisa
 namespace amdgcn {

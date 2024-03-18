@@ -146,7 +146,7 @@ std::string Action::getOffloadingKindPrefix() const {
 
   std::string Res("host");
   assert(!((ActiveOffloadKindMask & OFK_Cuda) &&
-           (ActiveOffloadKindMask & OFK_HIP)
+           (ActiveOffloadKindMask & OFK_HIP) &&
            (ActiveOffloadKindMask & OFK_BANG)) &&
          "Cannot offload CUDA and HIP at the same time");
   if (ActiveOffloadKindMask & OFK_Cuda)

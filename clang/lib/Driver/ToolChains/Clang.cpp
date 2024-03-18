@@ -5061,31 +5061,31 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     // addition to the host compilation. There is no dependence connection
     // between device and host where we should be able to use the offloading
     // arch to add the macro to the host compile.
-    auto addTargetMacros = [&](const llvm::Triple &Triple) {
-      if (!Triple.isSPIR() && !Triple.isNVPTX() && !Triple.isAMDGCN() && !Triple.isMLISA())
-        return;
-      SmallString<64> Macro;
-      if ((Triple.isSPIR() &&
-           Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen) ||
-          Triple.isNVPTX() || Triple.isAMDGCN() || Triple.isMLISA()) {
-        StringRef Device = JA.getOffloadingArch();
-        if (!Device.empty()) {
-          Macro = "-D";
-          Macro += SYCL::gen::getGenDeviceMacro(Device);
-        }
-      } else if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
-        Macro = "-D__SYCL_TARGET_INTEL_X86_64__";
-      if (Macro.size()) {
-        CmdArgs.push_back(Args.MakeArgString(Macro));
-        D.addSYCLTargetMacroArg(Args, Macro);
-      }
-    };
-    if (IsSYCLOffloadDevice)
-      addTargetMacros(RawTriple);
-    else {
-      for (auto &Macro : D.getSYCLTargetMacroArgs())
-        CmdArgs.push_back(Args.MakeArgString(Macro));
-    }
+    // auto addTargetMacros = [&](const llvm::Triple &Triple) {
+    //   if (!Triple.isSPIR() && !Triple.isNVPTX() && !Triple.isAMDGCN() && !Triple.isMLISA())
+    //     return;
+    //   SmallString<64> Macro;
+    //   if ((Triple.isSPIR() &&
+    //        Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen) ||
+    //       Triple.isNVPTX() || Triple.isAMDGCN() || Triple.isMLISA()) {
+    //     StringRef Device = JA.getOffloadingArch();
+    //     if (!Device.empty()) {
+    //       Macro = "-D";
+    //       Macro += SYCL::gen::getGenDeviceMacro(Device);
+    //     }
+    //   } else if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
+    //     Macro = "-D__SYCL_TARGET_INTEL_X86_64__";
+    //   if (Macro.size()) {
+    //     CmdArgs.push_back(Args.MakeArgString(Macro));
+    //     D.addSYCLTargetMacroArg(Args, Macro);
+    //   }
+    // };
+    // if (IsSYCLOffloadDevice)
+    //   addTargetMacros(RawTriple);
+    // else {
+    //   for (auto &Macro : D.getSYCLTargetMacroArgs())
+    //     CmdArgs.push_back(Args.MakeArgString(Macro));
+    // }
   }
 
   if (IsOpenMPDevice) {
