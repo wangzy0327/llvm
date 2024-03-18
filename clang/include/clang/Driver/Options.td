@@ -824,6 +824,16 @@ def Xcuda_fatbinary : Separate<["-"], "Xcuda-fatbinary">,
   HelpText<"Pass <arg> to fatbinary invocation">, MetaVarName<"<arg>">;
 def Xcuda_ptxas : Separate<["-"], "Xcuda-ptxas">,
   HelpText<"Pass <arg> to the ptxas assembler">, MetaVarName<"<arg>">;
+
+def Xbang_fatbinary : Separate<["-"], "Xbang-fatbinary">,
+  HelpText<"Pass <arg> to fatbinary invocation">, MetaVarName<"<arg>">;
+def Xbang_cnas : Separate<["-"], "Xbang_cnas">,
+  HelpText<"Pass <arg> to the cnas assembler">, MetaVarName<"<arg>">;
+def bang_wram_align64 : Separate<["-"], "bang_wram_align64">,
+  HelpText<"Pass <arg> to set the wram align to 64">, MetaVarName<"<arg>">;
+def wram_align_EQ : Separate<["-"], "wram_align=">,
+  HelpText<"Pass <arg> to set the wram alignement">, MetaVarName<"<arg>">;
+
 def Xopenmp_target : Separate<["-"], "Xopenmp-target">, Group<CompileOnly_Group>,
   HelpText<"Pass <arg> to the target offloading toolchain.">, MetaVarName<"<arg>">;
 def Xopenmp_target_EQ : JoinedAndSeparate<["-"], "Xopenmp-target=">, Group<CompileOnly_Group>,
@@ -985,6 +995,37 @@ def cuda_path_ignore_env : Flag<["--"], "cuda-path-ignore-env">, Group<i_Group>,
   HelpText<"Ignore environment variables to detect CUDA installation">;
 def ptxas_path_EQ : Joined<["--"], "ptxas-path=">, Group<i_Group>,
   HelpText<"Path to ptxas (used for compiling CUDA code)">;
+
+def neuware_path_EQ : Joined<["--"], "neuware-path=">, Group<i_Group>,
+  HelpText<"neuware installation path">;
+def no_neuware_version_check : Flag<["--"], "no-neuware-version-check">,
+  HelpText<"Don't error out if the detected version of the neuware install is "
+           "too low for the requested neuware gpu architecture.">;
+def noneuwareinc : Flag<["-"], "noneuwareinc">, HelpText<"Do not add include paths for neuware and"
+  " do not include the default neuware wrapper headers">;
+def noneuwarelib : Flag<["-"], "noneuwarelib">,
+  HelpText<"Do not link device library for BANG device compilation">;           
+def fbang_enable_global_ieee_754: Flag<["--"], "fbang_enable_global_ieee_754">, 
+  HelpText<"Enable bang IEEE 754.">;
+def fbang_disable_global_ieee_754: Flag<["--"], "fbang_disable_global_ieee_754">, 
+  HelpText<"Disable bang IEEE 754.">;
+def fbang_disable_uop_cdma: Flag<["--"], "fbang_disable_uop_cdma">, 
+  HelpText<"set no op on cdma">;
+def fbang_disable_uop_mdma: Flag<["--"], "fbang_disable_uop_mdma">, 
+  HelpText<"set no op on mdma">;
+def fbang_disable_uop_gdma: Flag<["--"], "fbang_disable_uop_gdma">, 
+  HelpText<"set no op on gdma">;
+def cnas_path_EQ : Joined<["--"], "cnas-path=">, Group<i_Group>,
+  HelpText<"Path to cnas (used for compiling BANC code)">;
+def bang_stack_on_ldram: Flag<["--"], "bang_stack_on_ldram">, 
+  HelpText<"is enabled, promote stack to LDRAM">;
+def fbang_enable_trc_mode: Flag<["--"], "fbang_enable_trc_mode">, 
+  HelpText<"is enabled, fbang_enable_trc_mode">;
+def fmlu_fast_math: Flag<["--"], "fmlu_fast_math">, 
+  HelpText<"is enabled, fmlu_fast_math">;
+def fbang_instrument_functions: Flag<["--"], "fbang_instrument_functions">, 
+  HelpText<"set fbang_instrument_functions">;
+
 def fgpu_flush_denormals_to_zero : Flag<["-"], "fgpu-flush-denormals-to-zero">,
   HelpText<"Flush denormal floating point values to zero in CUDA/HIP device mode.">;
 def fno_gpu_flush_denormals_to_zero : Flag<["-"], "fno-gpu-flush-denormals-to-zero">;
@@ -2603,6 +2644,25 @@ def cuda_device_only : Flag<["--"], "cuda-device-only">, Alias<offload_device_on
   HelpText<"Compile CUDA code for device only">;
 def cuda_host_only : Flag<["--"], "cuda-host-only">, Alias<offload_host_only>,
   HelpText<"Compile CUDA code for host only. Has no effect on non-CUDA compilations.">;
+
+def bang_path_EQ : Joined<["--"], "bang-path=">, Flags<[CoreOption]>, Group<i_Group>,
+  HelpText<"BANG installation path">;
+def bang_path_ignore_env : Flag<["--"], "bang-path-ignore-env">, Group<i_Group>,
+  HelpText<"Ignore environment variables to detect BANG installation">;
+def bang_noopt_device_debug : Flag<["--"], "bang-noopt-device-debug">,
+  HelpText<"Enable device-side debug info generation. Disables mlisa optimizations.">;  
+def no_bang_noopt_device_debug : Flag<["--"], "no-bang-noopt-device-debug">;
+def bang_device_only : Flag<["--"], "bang-device-only">,
+  HelpText<"Compile BANG code for device only">;
+def bang_host_only : Flag<["--"], "bang-host-only">,
+  HelpText<"Compile BNAG code for host only.  Has no effect on non-BANG "
+           "compilations.">;
+def bang_compile_host_device : Flag<["--"], "bang-compile-host-device">,
+  HelpText<"Compile BANG code for both host and device (default).  Has no "
+           "effect on non-BANG compilations.">;
+def bang_fatbin_only : Flag<["--"], "bang_fatbin_only">,
+  HelpText<"Compile BANG code for both fatbinary (default).">;
+
 def cuda_compile_host_device : Flag<["--"], "cuda-compile-host-device">, Alias<offload_host_device>,
   HelpText<"Compile CUDA code for both host and device (default). Has no "
            "effect on non-CUDA compilations.">;

@@ -83,6 +83,17 @@ def err_drv_hipspv_no_hip_path : Error<
   "'--hip-path' must be specified when offloading to "
   "SPIR-V%select{| unless %1 is given}0.">;
 
+def err_drv_bang_bad_gpu_arch : Error<"unsupported MLU gpu architecture: %0">;
+def err_drv_no_bang_installation : Error<
+  "cannot find BANG installation; provide its path via '--bang-path', or pass "
+  "'-nocudainc' to build without BANG includes">;
+def err_drv_no_bang_libdevice : Error<
+  "cannot find libdevice for %0; provide path to different BANG installation "
+  "via '--bang-path', or pass '-nobanglib' to build without linking with "
+  "libdevice">;
+def err_drv_sycl_missing_mlisa_arch : Error<
+  "missing MLISA architecture for SYCL offloading; specify it with '-Xsycl-target-backend --offload-arch'">;
+
 def err_drv_undetermined_amdgpu_arch : Error<
   "cannot determine AMDGPU architecture: %0; consider passing it via "
   "'--march'">;
