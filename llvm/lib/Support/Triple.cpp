@@ -1422,7 +1422,6 @@ static unsigned getArchPointerBitWidth(llvm::Triple::ArchType Arch) {
   case llvm::Triple::m68k:
   case llvm::Triple::mips:
   case llvm::Triple::mipsel:
-  case llvm::Triple::mlisa:  
   case llvm::Triple::nvptx:
   case llvm::Triple::ppc:
   case llvm::Triple::ppcle:
@@ -1454,6 +1453,7 @@ static unsigned getArchPointerBitWidth(llvm::Triple::ArchType Arch) {
   case llvm::Triple::loongarch64:
   case llvm::Triple::mips64:
   case llvm::Triple::mips64el:
+  case llvm::Triple::mlisa:
   case llvm::Triple::nvptx64:
   case llvm::Triple::ppc64:
   case llvm::Triple::ppc64le:
@@ -1598,6 +1598,7 @@ Triple Triple::get64BitArchVariant() const {
   case Triple::loongarch64:
   case Triple::mips64:
   case Triple::mips64el:
+  case Triple::mlisa:
   case Triple::nvptx64:
   case Triple::ppc64:
   case Triple::ppc64le:
@@ -1626,7 +1627,6 @@ Triple Triple::get64BitArchVariant() const {
   case Triple::mipsel:
     T.setArch(Triple::mips64el, getSubArch());
     break;
-  case Triple::mlisa:
   case Triple::nvptx:           T.setArch(Triple::nvptx64);    break;
   case Triple::ppc:             T.setArch(Triple::ppc64);      break;
   case Triple::ppcle:           T.setArch(Triple::ppc64le);    break;

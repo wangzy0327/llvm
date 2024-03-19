@@ -631,7 +631,7 @@ Expected<StringRef> assemble(StringRef InputFile, Triple TheTriple,
   return static_cast<std::string>(TempFile);
 }
 
-Expected<StringRef> link(ArrayRef<StringRef> InputFiles, Triple TheTriple,
+Expected<std::string> link(ArrayRef<std::string> InputFiles, Triple TheTriple,
                          StringRef Arch) {
   llvm::TimeTraceScope TimeScope("MLISA linker");
   // MLISA uses the cncc binary to link device object files.
@@ -798,6 +798,8 @@ Expected<std::string> linkDevice(ArrayRef<std::string> InputFiles,
     return nvptx::link(InputFiles, TheTriple, Arch);
   case Triple::amdgcn:
     return amdgcn::link(InputFiles, TheTriple, Arch);
+  case Triple::mlisa:
+    return mlisa::link(InputFiles, TheTriple, Arch);    
   case Triple::x86:
   case Triple::x86_64:
   case Triple::aarch64:

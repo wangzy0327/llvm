@@ -8,6 +8,7 @@
 
 #include "Clang.h"
 #include "AMDGPU.h"
+#include "Bang.h"
 #include "Arch/AArch64.h"
 #include "Arch/ARM.h"
 #include "Arch/CSKY.h"
@@ -400,6 +401,9 @@ static void getTargetFeatures(const Driver &D, const llvm::Triple &Triple,
   case llvm::Triple::nvptx64:
     NVPTX::getNVPTXTargetFeatures(D, Triple, Args, Features);
     break;
+  case llvm::Triple::mlisa:
+    MLISA::getMLISATargetFeatures(D, Triple, Args, Features);
+    break;    
   case llvm::Triple::m68k:
     m68k::getM68kTargetFeatures(D, Triple, Args, Features);
     break;

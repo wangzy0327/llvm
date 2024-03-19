@@ -12027,8 +12027,10 @@ const TargetCodeGenInfo &CodeGenModule::getTargetCodeGenInfo() {
 
   case llvm::Triple::nvptx:
   case llvm::Triple::nvptx64:
-    return SetCGInfo(new NVPTXTargetCodeGenInfo(Types));
+    return SetCGInfo(new NVPTXTargetCodeGenInfo(Types));   
 
+  case llvm::Triple::mlisa:
+    return SetCGInfo(new MLISATargetCodeGenInfo(Types));   
   case llvm::Triple::msp430:
     return SetCGInfo(new MSP430TargetCodeGenInfo(Types));
 
