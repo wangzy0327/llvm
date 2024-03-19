@@ -34,7 +34,8 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
   ptx-nvidiacl/lib/SOURCES;
   r600/lib/SOURCES;
   spirv/lib/SOURCES;
-  spirv64/lib/SOURCES
+  spirv64/lib/SOURCES;
+  mlisa/lib/SOURCES
 )
 
 include( AddLibclc )
@@ -52,6 +53,7 @@ set( LIBCLC_TARGETS_ALL
   nvptx64--nvidiacl
   spirv-mesa3d-
   spirv64-mesa3d-
+  mlisa--cambriconcl
 )
 set( LIBCLC_TEST_TARGETS_ALL
   nvptx--nvidiacl
@@ -178,6 +180,7 @@ set( nvptx--_devices none )
 set( nvptx64--_devices none )
 set( nvptx--nvidiacl_devices none )
 set( nvptx64--nvidiacl_devices none )
+set( mlisa--cambriconcl_devices none )
 set( spirv-mesa3d-_devices none )
 set( spirv64-mesa3d-_devices none )
 
@@ -268,6 +271,10 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 		set( DARCH ptx )
 	else()
 		set( DARCH ${ARCH} )
+	endif()
+
+	if( ${ARCH} STREQUAL mlisa)
+		list( APPEND dirs mlisa )
 	endif()
 
 	set( lib_files )

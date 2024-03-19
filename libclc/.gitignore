@@ -9,6 +9,7 @@ generic/lib/convert.cl
 libclc.pc
 nvptx--nvidiacl
 nvptx64--nvidiacl
+mlisa--cambriconcl
 r600--
 utils/prepare-builtins
 utils/prepare-builtins.o
