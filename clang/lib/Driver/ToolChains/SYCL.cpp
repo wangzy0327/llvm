@@ -308,7 +308,8 @@ void SYCL::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   assert((getToolChain().getTriple().isSPIR() ||
           getToolChain().getTriple().isNVPTX() ||
-          getToolChain().getTriple().isAMDGCN()) &&
+          getToolChain().getTriple().isAMDGCN() ||
+          getToolChain().getTriple().isMLISA()) &&
          "Unsupported target");
 
   std::string SubArchName =
@@ -320,7 +321,8 @@ void SYCL::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   // For CUDA, we want to link all BC files before resuming the normal
   // compilation path
   if (getToolChain().getTriple().isNVPTX() ||
-      getToolChain().getTriple().isAMDGCN()) {
+      getToolChain().getTriple().isAMDGCN() ||
+      getToolChain().getTriple().isMLISA()) {
     InputInfoList NvptxInputs;
     for (const auto &II : Inputs) {
       if (!II.isFilename())

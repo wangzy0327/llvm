@@ -550,7 +550,7 @@ std::string BangToolChain::getInputFilename(const InputInfo &Input) const {
 
 // Select remangled libclc variant. 64-bit longs default
 static const char *getLibSpirvTargetName(const ToolChain &HostTC) {
-  return "remangled-l64-signed_char.libspirv-mlisa-cambricon-bang.bc";
+  return "remangled-l64-signed_char.libspirv-mlisa--cambriconcl.bc";
 }
 
 void BangToolChain::addClangTargetOptions(
@@ -605,10 +605,10 @@ void BangToolChain::addClangTargetOptions(
       for (StringRef LibraryPath : LibraryPaths) {
         SmallString<128> LibSpirvTargetFile(LibraryPath);
         llvm::sys::path::append(LibSpirvTargetFile, LibSpirvTargetName);
-        llvm::outs()<<"MLISA LIBCLC PATH : "<<std::string(LibSpirvTargetFile.str())<<"\n";
         if (llvm::sys::fs::exists(LibSpirvTargetFile) ||
             DriverArgs.hasArg(options::OPT__HASH_HASH_HASH)) {
           LibSpirvFile = std::string(LibSpirvTargetFile.str());
+          llvm::outs()<<"MLISA LIBCLC PATH : "<<LibSpirvFile<<"\n";
           break;
         }
       }

@@ -5579,7 +5579,7 @@ class OffloadingActionBuilder final {
                 ToolChains, [&](auto &TC) { return TT == TC->getTriple(); });
             assert(TCIt != ToolChains.end() &&
                    "Toolchain was not created for this platform");
-            if (!TT.isNVPTX() && !TT.isAMDGCN())
+            if (!TT.isNVPTX() && !TT.isAMDGCN() && !TT.isMLISA())
               SYCLTargetInfoList.emplace_back(*TCIt, nullptr);
             else {
               SYCLTargetInfoList.emplace_back(*TCIt, GpuArchList[I].second);
@@ -8890,6 +8890,10 @@ const ToolChain &Driver::getOffloadingDeviceToolChain(const ArgList &Args,
             break;
           case llvm::Triple::amdgcn:
             TC = std::make_unique<toolchains::HIPAMDToolChain>(
+                *this, Target, HostTC, Args, TargetDeviceOffloadKind);
+            break;
+          case llvm::Triple::mlisa:
+            TC = std::make_unique<toolchains::BangToolChain>(
                 *this, Target, HostTC, Args, TargetDeviceOffloadKind);
             break;
           default:
