@@ -38,10 +38,10 @@ std::string getCnrtVersionString() {
   if (result != cnrtSuccess) {
     return "Unknown CNRT Version";
   }  
-  std::stringstream stream;
-  stream << "CNRT getCnrtVersionString : " << major_version << "." << minor_version << "."
+  std::stringstream queue;
+  queue << "CNRT getCnrtVersionString : " << major_version << "." << minor_version << "."
          << patch_version;
-  return stream.str();
+  return queue.str();
 }
 
 pi_result map_error(CNresult result) {
@@ -102,22 +102,22 @@ pi_result forLatestEvents(const pi_event *event_wait_list,
   std::vector<pi_event> events{event_wait_list,
                                event_wait_list + num_events_in_wait_list};
   std::sort(events.begin(), events.end(), [](pi_event e0, pi_event e1) {
-    // Tiered sort creating sublists of streams (smallest value first) in which
+    // Tiered sort creating sublists of queues (smallest value first) in which
     // the corresponding events are sorted into a sequence of newest first.
-    return e0->get_stream() < e1->get_stream() ||
-           (e0->get_stream() == e1->get_stream() &&
+    return e0->get_native_queue() < e1->get_native_queue() ||
+           (e0->get_native_queue() == e1->get_native_queue() &&
             e0->get_event_id() > e1->get_event_id());
   });
 
   bool first = true;
-  CNqueue lastSeenStream = 0;
+  CNqueue lastSeenQueue = 0;
   for (pi_event event : events) {
-    if (!event || (!first && event->get_stream() == lastSeenStream)) {
+    if (!event || (!first && event->get_native_queue() == lastSeenQueue)) {
       continue;
     }
 
     first = false;
-    lastSeenStream = event->get_stream();
+    lastSeenQueue = event->get_native_queue();
 
     auto result = f(event);
     if (result != PI_SUCCESS) {
@@ -304,7 +304,15 @@ void guessLocalWorkSize(size_t *threadsPerBlock, const size_t *global_work_size,
   }
 }
 
-pi_result enqueueEventsWait(pi_queue command_queue, CNqueue stream,
+// makes all future work submitted to queue wait for all work captured in event.
+pi_result enqueueEventWait(pi_queue queue, pi_event event) {
+  // for native events, the cnQueueWaitNotifier call is used.
+  // This makes all future work submitted to queue wait for all
+  // work captured in event.
+  return PI_CHECK_ERROR(cnQueueWaitNotifier(queue->get(), event->get()));
+}
+
+pi_result enqueueEventsWait(pi_queue command_queue, CNqueue queue,
                             pi_uint32 num_events_in_wait_list,
                             const pi_event *event_wait_list) {
   if (!event_wait_list) {
@@ -313,19 +321,18 @@ pi_result enqueueEventsWait(pi_queue command_queue, CNqueue stream,
   try {
     ScopedContext active(command_queue->get_context());
 
-    auto result = forLatestEvents(
-        event_wait_list, num_events_in_wait_list,
-        [stream](pi_event event) -> pi_result {
-          if (event->get_stream() == stream) {
-            return PI_SUCCESS;
-          } else {
-            return PI_CHECK_ERROR(cnQueueWaitNotifier(stream, event->get()));
-          }
-        });
+    if (event_wait_list) {
+      auto result =
+          forLatestEvents(event_wait_list, num_events_in_wait_list,
+                          [queue](pi_event event) -> pi_result {
+                            return PI_CHECK_ERROR(cnQueueWaitNotifier(queue, event->get()));
+                          });
 
-    if (result != PI_SUCCESS) {
-      return result;
+      if (result != PI_SUCCESS) {
+        return result;
+      }
     }
+   
     return PI_SUCCESS;
   } catch (pi_result err) {
     return err;
@@ -387,101 +394,35 @@ pi_result cnrt_piEventRetain(pi_event event);
 
 /// \endcond
 
-void _pi_queue::compute_stream_wait_for_barrier_if_needed(CNqueue stream,
-                                                          pi_uint32 stream_i) {
-  if (barrier_event_ && !compute_applied_barrier_[stream_i]) {
-    PI_CHECK_ERROR(cnQueueWaitNotifier(stream, barrier_event_));
-    compute_applied_barrier_[stream_i] = true;
-  }
-}
-
-void _pi_queue::transfer_stream_wait_for_barrier_if_needed(CNqueue stream,
-                                                           pi_uint32 stream_i) {
-  if (barrier_event_ && !transfer_applied_barrier_[stream_i]) {
-    PI_CHECK_ERROR(cnQueueWaitNotifier(stream, barrier_event_));
-    transfer_applied_barrier_[stream_i] = true;
-  }
-}
-
-CNqueue _pi_queue::get_next_compute_stream(pi_uint32 *stream_token) {
-  pi_uint32 stream_i;
-  pi_uint32 token;
-  while (true) {
-    if (num_compute_streams_ < compute_streams_.size()) {
-      // the check above is for performance - so as not to lock mutex every time
-      std::lock_guard<std::mutex> guard(compute_stream_mutex_);
-      // The second check is done after mutex is locked so other threads can not
-      // change num_compute_streams_ after that
-      if (num_compute_streams_ < compute_streams_.size()) {
-        PI_CHECK_ERROR(
-            cnCreateQueue(&compute_streams_[num_compute_streams_++], flags_));
-      }
-    }
-    token = compute_stream_idx_++;
-    stream_i = token % compute_streams_.size();
-    // if a stream has been reused before it was next selected round-robin
-    // fashion, we want to delay its next use and instead select another one
-    // that is more likely to have completed all the enqueued work.
-    if (delay_compute_[stream_i]) {
-      delay_compute_[stream_i] = false;
-    } else {
-      break;
-    }
-  }
-  if (stream_token) {
-    *stream_token = token;
-  }
-  CNqueue res = compute_streams_[stream_i];
-  compute_stream_wait_for_barrier_if_needed(res, stream_i);
-  return res;
-}
-
-CNqueue _pi_queue::get_next_compute_stream(pi_uint32 num_events_in_wait_list,
-                                            const pi_event *event_wait_list,
-                                            _pi_stream_guard &guard,
-                                            pi_uint32 *stream_token) {
-  for (pi_uint32 i = 0; i < num_events_in_wait_list; i++) {
-    pi_uint32 token = event_wait_list[i]->get_compute_stream_token();
-    if (event_wait_list[i]->get_queue() == this && can_reuse_stream(token)) {
-      std::unique_lock<std::mutex> compute_sync_guard(
-          compute_stream_sync_mutex_);
-      // redo the check after lock to avoid data races on
-      // last_sync_compute_streams_
-      if (can_reuse_stream(token)) {
-        pi_uint32 stream_i = token % delay_compute_.size();
-        delay_compute_[stream_i] = true;
-        if (stream_token) {
-          *stream_token = token;
-        }
-        guard = _pi_stream_guard{std::move(compute_sync_guard)};
-        CNqueue res = event_wait_list[i]->get_stream();
-        compute_stream_wait_for_barrier_if_needed(res, stream_i);
-        return res;
-      }
-    }
-  }
-  guard = {};
-  return get_next_compute_stream(stream_token);
-}
-
-CNqueue _pi_queue::get_next_transfer_stream() {
-  if (transfer_streams_.empty()) { // for example in in-order queue
-    return get_next_compute_stream();
-  }
-  if (num_transfer_streams_ < transfer_streams_.size()) {
+CNqueue _pi_queue::get_next_compute_queue() {
+  if (num_compute_queues_ < compute_queues_.size()) {
     // the check above is for performance - so as not to lock mutex every time
-    std::lock_guard<std::mutex> guard(transfer_stream_mutex_);
+    std::lock_guard<std::mutex> guard(compute_queue_mutex_);
     // The second check is done after mutex is locked so other threads can not
-    // change num_transfer_streams_ after that
-    if (num_transfer_streams_ < transfer_streams_.size()) {
+    // change num_compute_queues_ after that
+    if (num_compute_queues_ < compute_queues_.size()) {
       PI_CHECK_ERROR(
-          cnCreateQueue(&transfer_streams_[num_transfer_streams_++], flags_));
+          cnCreateQueue(&compute_queues_[num_compute_queues_++], flags_));
     }
   }
-  pi_uint32 stream_i = transfer_stream_idx_++ % transfer_streams_.size();
-  CNqueue res = transfer_streams_[stream_i];
-  transfer_stream_wait_for_barrier_if_needed(res, stream_i);
-  return res;
+  return compute_queues_[compute_queue_idx_++ % compute_queues_.size()];
+}
+
+CNqueue _pi_queue::get_next_transfer_queue() {
+  if (transfer_queues_.empty()) { // for example in in-order queue
+    return get_next_compute_queue();
+  }
+  if (num_transfer_queues_ < transfer_queues_.size()) {
+    // the check above is for performance - so as not to lock mutex every time
+    std::lock_guard<std::mutex> guard(transfer_queue_mutex_);
+    // The second check is done after mutex is locked so other threads can not
+    // change num_transfer_queues_ after that
+    if (num_transfer_queues_ < transfer_queues_.size()) {
+      PI_CHECK_ERROR(
+          cnCreateQueue(&transfer_queues_[num_transfer_queues_++], flags_));
+    }
+  }
+  return transfer_queues_[transfer_queue_idx_++ % transfer_queues_.size()];
 }
 
 _pi_event::_pi_event(pi_command_type type, pi_context context, pi_queue queue)
@@ -509,7 +450,7 @@ _pi_event::_pi_event(pi_command_type type, pi_context context, pi_queue queue)
 _pi_event::_pi_event(pi_context context, CNnotifier eventNative)
     : commandType_{PI_COMMAND_TYPE_USER}, refCount_{1}, has_ownership_{false},
       hasBeenWaitedOn_{false}, isRecorded_{false}, isStarted_{false},
-      streamToken_{std::numeric_limits<pi_uint32>::max()}, evEnd_{eventNative},
+      queueToken_{std::numeric_limits<pi_uint32>::max()}, evEnd_{eventNative},
       evStart_{nullptr}, evQueued_{nullptr}, queue_{nullptr}, context_{
                                                                   context} {
   cnrt_piContextRetain(context_);
@@ -528,9 +469,9 @@ pi_result _pi_event::start() {
 
   try {
     if (queue_->properties_ & PI_QUEUE_PROFILING_ENABLE) {
-      // NOTE: This relies on the default stream to be unused.
+      // NOTE: This relies on the default queue to be unused.
       result = PI_CHECK_ERROR(cnPlaceNotifier(evQueued_, 0));
-      result = PI_CHECK_ERROR(cnPlaceNotifier(evStart_, stream_));
+      result = PI_CHECK_ERROR(cnPlaceNotifier(evStart_, queue_->get()));
     }
   } catch (pi_result error) {
     result = error;
@@ -602,7 +543,7 @@ pi_result _pi_event::record() {
       sycl::detail::pi::die(
           "Unrecoverable program state reached in event identifier overflow");
     }
-    result = PI_CHECK_ERROR(cnPlaceNotifier(evEnd_, stream_));
+    result = PI_CHECK_ERROR(cnPlaceNotifier(evEnd_, queue_->get()));
   } catch (pi_result error) {
     result = error;
   }
@@ -642,16 +583,6 @@ pi_result _pi_event::release() {
   return PI_SUCCESS;
 }
 
-// makes all future work submitted to queue wait for all work captured in event.
-pi_result enqueueEventWait(pi_queue queue, pi_event event) {
-  // for native events, the cnQueueWaitNotifier call is used.
-  // This makes all future work submitted to stream wait for all
-  // work captured in event.
-  queue->for_each_stream([e = event->get()](CNqueue s) {
-    PI_CHECK_ERROR(cnQueueWaitNotifier(s, e));
-  });
-  return PI_SUCCESS;
-}
 
 _pi_program::_pi_program(pi_context ctxt)
     : module_{nullptr}, binary_{}, binarySizeInBytes_{0}, refCount_{1},
@@ -1020,8 +951,8 @@ pi_result cnrt_piContextGetInfo(pi_context context, pi_context_info param_name,
         cnDeviceGetAttribute(&major,
                              CN_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
                              context->get_device()->get()) == CN_SUCCESS);
-    std::stringstream stream;
-    stream << "CNDrv cnrt_piContextGetInfo MEMORY_SCOPE_CAPABILITIES compute capability : " << major<< "\n";                       
+    std::stringstream queue;
+    queue << "CNDrv cnrt_piContextGetInfo MEMORY_SCOPE_CAPABILITIES compute capability : " << major<< "\n";                       
     //??? mlu compute capability
     pi_memory_order_capabilities capabilities =
         (major >= 2) ? PI_MEMORY_SCOPE_WORK_ITEM | PI_MEMORY_SCOPE_SUB_GROUP |
@@ -1271,8 +1202,8 @@ pi_result cnrt_piDeviceGetInfo(pi_device device, pi_device_info param_name,
         cnDeviceGetAttribute(&major,
                              CN_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
                              device->get()) == CN_SUCCESS);
-    std::stringstream stream;
-    stream << "CNDrv INFO_ATOMIC_64 compute capability : " << major<< "\n"; 
+    std::stringstream queue;
+    queue << "CNDrv INFO_ATOMIC_64 compute capability : " << major<< "\n"; 
     bool atomic64 = (major >= 2) ? true : false;
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    atomic64);
@@ -1290,8 +1221,8 @@ pi_result cnrt_piDeviceGetInfo(pi_device device, pi_device_info param_name,
         cnDeviceGetAttribute(&major,
                              CN_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
                              device->get()) == CN_SUCCESS);
-    std::stringstream stream;
-    stream << "CNDrv MEMORY_SCOPE_CAPABILITIES major compute capability : " << major<< "\n";                             
+    std::stringstream queue;
+    queue << "CNDrv MEMORY_SCOPE_CAPABILITIES major compute capability : " << major<< "\n";                             
     pi_memory_order_capabilities capabilities =
         (major >= 2) ? PI_MEMORY_SCOPE_WORK_ITEM | PI_MEMORY_SCOPE_SUB_GROUP |
                            PI_MEMORY_SCOPE_WORK_GROUP | PI_MEMORY_SCOPE_DEVICE |
@@ -1307,8 +1238,8 @@ pi_result cnrt_piDeviceGetInfo(pi_device device, pi_device_info param_name,
         cnDeviceGetAttribute(&major,
                              CN_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
                              device->get()) == CN_SUCCESS);
-    std::stringstream stream;
-    stream << "CNDrv BFLOAT16_MATH_FUNCTIONS compute capability : " << major<< "\n";
+    std::stringstream queue;
+    queue << "CNDrv BFLOAT16_MATH_FUNCTIONS compute capability : " << major<< "\n";
     bool bfloat16 = (major >= 2) ? true : false;
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    bfloat16);
@@ -1527,8 +1458,8 @@ pi_result cnrt_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                              CN_MEM_ALLOC_GRANULARITY_RECOMMENDED) == CN_SUCCESS);
     // Multiply by 8 as clGetDeviceInfo returns this value in bits
     mem_base_addr_align *= 8;
-    std::stringstream stream;
-    stream << "CNDrv MEM_BASE_ADDR_ALIGN mem_base_addr_align : " << mem_base_addr_align<< "\n"; 
+    std::stringstream queue;
+    queue << "CNDrv MEM_BASE_ADDR_ALIGN mem_base_addr_align : " << mem_base_addr_align<< "\n"; 
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    mem_base_addr_align);
   }
@@ -1733,8 +1664,8 @@ pi_result cnrt_piDeviceGetInfo(pi_device device, pi_device_info param_name,
         cnDeviceGetAttribute(&minor,
                              CN_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR,
                              device->get()) == CN_SUCCESS);
-    std::stringstream stream;
-    stream << "CNDrv INFO_EXTENSIONS compute major version : "<<major<<" minor version : " << minor<< "\n"; 
+    std::stringstream queue;
+    queue << "CNDrv INFO_EXTENSIONS compute major version : "<<major<<" minor version : " << minor<< "\n"; 
     if ((major >= 2)) {
       SupportedExtensions += "cl_khr_fp16 ";
     }
@@ -2084,8 +2015,8 @@ pi_result cnrt_piContextCreate(const pi_context_properties *properties,
       // immediately as we want to forge context switches.
       //TODO[mlu]: Primary context ?
       CNcontext Ctxt;
-      std::stringstream stream;
-      stream << "CNRT cnrt_piContextCreate cannot create  primary context \n";
+      std::stringstream queue;
+      queue << "CNRT cnrt_piContextCreate cannot create  primary context \n";
     //   errcode_ret =
     //       PI_CHECK_ERROR(cnCtxGetCurrent(&Ctxt));
     //   piContextPtr = std::unique_ptr<_pi_context>(
@@ -2105,7 +2036,7 @@ pi_result cnrt_piContextCreate(const pi_context_properties *properties,
     std::call_once(
         initFlag,
         [](pi_result &err) {
-          // Use default stream to record base event counter
+          // Use default queue to record base event counter
           PI_CHECK_ERROR(
               cnCreateNotifier(&_pi_platform::evBase_, CN_NOTIFIER_DEFAULT));
           PI_CHECK_ERROR(cnPlaceNotifier(_pi_platform::evBase_, 0));
@@ -2266,9 +2197,9 @@ pi_result cnrt_piMemBufferCreate(pi_context context, pi_mem_flags flags,
       if (piMemObj != nullptr) {
         retMemObj = piMemObj.release();
         if (performInitialCopy) {
-          // Operates on the default stream of the current CNRT context.
+          // Operates on the default queue of the current CNRT context.
           retErr = PI_CHECK_ERROR(cnMemcpyHtoD(ptr, host_ptr, size));
-          // Synchronize with default stream implicitly used by cnMemcpyHtoD
+          // Synchronize with default queue implicitly used by cnMemcpyHtoD
           // to make buffer data available on device before any other PI call
           // uses it.
           if (retErr == PI_SUCCESS) {
@@ -2462,8 +2393,8 @@ pi_result cnrt_piextMemCreateWithNativeHandle(pi_native_handle nativeHandle,
 
 /// Creates a `pi_queue` object on the CNRT backend.
 /// Valid properties
-/// * __SYCL_PI_CNRT_USE_DEFAULT_STREAM -> cn_stream_DEFAULT
-/// * __SYCL_PI_CNRT_SYNC_WITH_DEFAULT -> cn_stream_NON_BLOCKING
+/// * __SYCL_PI_CNRT_USE_DEFAULT_STREAM -> cn_queue_DEFAULT
+/// * __SYCL_PI_CNRT_SYNC_WITH_DEFAULT -> cn_queue_NON_BLOCKING
 /// \return Pi queue object mapping to a CUStream
 ///
 pi_result cnrt_piQueueCreate(pi_context context, pi_device device,
@@ -2479,23 +2410,23 @@ pi_result cnrt_piQueueCreate(pi_context context, pi_device device,
     unsigned int flags = 0;
     // if (properties == __SYCL_PI_CNRT_USE_DEFAULT_STREAM) {
     //   //TODO[mlu] openmp
-    //   flags = cn_stream_DEFAULT;
+    //   flags = cn_queue_DEFAULT;
     // } else if (properties == __SYCL_PI_CNRT_SYNC_WITH_DEFAULT) {
     //   flags = 0;
     // } else {
-    //   flags = cn_stream_NON_BLOCKING;
+    //   flags = cn_queue_NON_BLOCKING;
     // }
 
     const bool is_out_of_order =
         properties & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
 
-    std::vector<CNqueue> computeCnStreams(
-        is_out_of_order ? _pi_queue::default_num_compute_streams : 1);
-    std::vector<CNqueue> transferCnStreams(
-        is_out_of_order ? _pi_queue::default_num_transfer_streams : 0);
+    std::vector<CNqueue> computeCNQueues(
+        is_out_of_order ? _pi_queue::default_num_compute_queues : 1);
+    std::vector<CNqueue> transferCNQueues(
+        is_out_of_order ? _pi_queue::default_num_transfer_queues : 0);
 
     queueImpl = std::unique_ptr<_pi_queue>(
-        new _pi_queue{std::move(computeCnStreams), std::move(transferCnStreams),
+        new _pi_queue{std::move(computeCNQueues), std::move(transferCNQueues),
                       context, device, properties, flags});
 
     *queue = queueImpl.release();
@@ -2590,12 +2521,12 @@ pi_result cnrt_piQueueRelease(pi_queue command_queue) {
   try {
     std::unique_ptr<_pi_queue> queueImpl(command_queue);
 
-    if (!command_queue->backend_has_ownership())
+    if (!command_queue->decrement_reference_count() > 0)
       return PI_SUCCESS;
 
     ScopedContext active(command_queue->get_context());
 
-    command_queue->for_each_stream([](CNqueue s) {
+    command_queue->for_each_queue([](CNqueue s) {
       PI_CHECK_ERROR(cnQueueSync(s));
       PI_CHECK_ERROR(cnDestroyQueue(s));
     });
@@ -2617,7 +2548,7 @@ pi_result cnrt_piQueueFinish(pi_queue command_queue) {
            nullptr); // need PI_ERROR_INVALID_EXTERNAL_HANDLE error code
     ScopedContext active(command_queue->get_context());
 
-    command_queue->sync_streams</*ResetUsed=*/true>([&result](CNqueue s) {
+    command_queue->sync_queues([&result](CNqueue s) {
       result = PI_CHECK_ERROR(cnQueueSync(s));
     });
 
@@ -2651,7 +2582,7 @@ pi_result cnrt_piextQueueGetNativeHandle(pi_queue queue,
                                          pi_native_handle *nativeHandle) {
   ScopedContext active(queue->get_context());
   *nativeHandle =
-      reinterpret_cast<pi_native_handle>(queue->get_next_compute_stream());
+      reinterpret_cast<pi_native_handle>(queue->get_next_compute_queue());
   return PI_SUCCESS;
 }
 
@@ -2670,38 +2601,10 @@ pi_result cnrt_piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
                                                 pi_device device,
                                                 bool ownNativeHandle,
                                                 pi_queue *queue) {
-  (void)device;
   (void)ownNativeHandle;
-  assert(ownNativeHandle == false);
-
-  unsigned int flags;
-  CNqueue cnStream = reinterpret_cast<CNqueue>(nativeHandle);
-
-  auto retErr = PI_CHECK_ERROR(cnCtxGetFlags(&flags));
-
-  pi_queue_properties properties = 0;
-  // if (flags == cn_stream_DEFAULT)
-  //   properties = __SYCL_PI_CNRT_USE_DEFAULT_STREAM;
-  // else if (flags == cn_stream_NON_BLOCKING)
-  //   properties = __SYCL_PI_CNRT_SYNC_WITH_DEFAULT;
-  // else
-  //   sycl::detail::pi::die("Unknown cnrt stream");
-
-  std::vector<CNqueue> computeCnStreams(1, cnStream);
-  std::vector<CNqueue> transferCnStreams(0);
-
-  // Create queue and set num_compute_streams to 1, as computeCnStreams has
-  // valid stream
-  *queue = new _pi_queue{std::move(computeCnStreams),
-                         std::move(transferCnStreams),
-                         context,
-                         context->get_device(),
-                         properties,
-                         flags,
-                         /*backend_owns*/ false};
-  (*queue)->num_compute_streams_ = 1;
-
-  return retErr;
+  cl::sycl::detail::pi::die(
+      "Creation of PI queue from native handle not implemented");
+  return {};
 }
 
 pi_result cnrt_piEnqueueMemBufferWrite(pi_queue command_queue, pi_mem buffer,
@@ -2719,9 +2622,9 @@ pi_result cnrt_piEnqueueMemBufferWrite(pi_queue command_queue, pi_mem buffer,
 
   try {
     ScopedContext active(command_queue->get_context());
-    CNqueue cnStream = command_queue->get_next_transfer_stream();
+    CNqueue cnQueue = command_queue->get_next_transfer_queue();
 
-    retErr = enqueueEventsWait(command_queue, cnStream, num_events_in_wait_list,
+    retErr = enqueueEventsWait(command_queue, cnQueue, num_events_in_wait_list,
                                event_wait_list);
 
     if (event) {
@@ -2731,14 +2634,14 @@ pi_result cnrt_piEnqueueMemBufferWrite(pi_queue command_queue, pi_mem buffer,
     }
 
     retErr =
-        PI_CHECK_ERROR(cnMemcpyHtoDAsync(devPtr + offset, ptr, size, cnStream));
+        PI_CHECK_ERROR(cnMemcpyHtoDAsync(devPtr + offset, ptr, size, cnQueue));
 
     if (event) {
       retErr = retImplEv->record();
     }
 
     if (blocking_write) {
-      retErr = PI_CHECK_ERROR(cnQueueSync(cnStream));
+      retErr = PI_CHECK_ERROR(cnQueueSync(cnQueue));
     }
 
     if (event) {
@@ -2760,12 +2663,12 @@ pi_result cnrt_piEnqueueMemBufferRead(pi_queue command_queue, pi_mem buffer,
   assert(buffer != nullptr);
   assert(command_queue != nullptr);
   pi_result retErr = PI_SUCCESS;
-  CNqueue cnStream = command_queue->get();
   CNaddr devPtr = buffer->mem_.buffer_mem_.get();
   std::unique_ptr<_pi_event> retImplEv{nullptr};
 
   try {
     ScopedContext active(command_queue->get_context());
+    CNqueue cnQueue = command_queue->get_next_transfer_queue();
 
     retErr = cnrt_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
                                event_wait_list, nullptr);
@@ -2777,16 +2680,14 @@ pi_result cnrt_piEnqueueMemBufferRead(pi_queue command_queue, pi_mem buffer,
     }
 
     retErr =
-        PI_CHECK_ERROR(cnMemcpyDtoH(ptr, devPtr + offset, size));
-    // retErr =
-    //     PI_CHECK_ERROR(cnMemcpyDtoHAsync(ptr, devPtr + offset, size, cnStream));        
+        PI_CHECK_ERROR(cnMemcpyDtoHAsync(ptr, devPtr + offset, size, cnQueue));      
 
     if (event) {
       retErr = retImplEv->record();
     }
 
     if (blocking_read) {
-      retErr = PI_CHECK_ERROR(cnQueueSync(cnStream));
+      retErr = PI_CHECK_ERROR(cnQueueSync(cnQueue));
     }
 
     if (event) {
@@ -2845,24 +2746,24 @@ pi_result cnrt_piKernelCreate(pi_program program, const char *kernel_name,
   try {
     ScopedContext active(program->get_context());
 
-    CNkernel cuFunc;
+    CNkernel cnFunc;
     retErr = PI_CHECK_ERROR(
-        cnModuleGetKernel(program->get(), kernel_name, &cuFunc));
+        cnModuleGetKernel(program->get(), kernel_name, &cnFunc));
 
-    std::string kernel_name_woffset = std::string(kernel_name) + "_with_offset";
-    CNkernel cuFuncWithOffsetParam;
-    CNresult offsetRes = cnModuleGetKernel(
-        program->get(), kernel_name_woffset.c_str(), &cuFuncWithOffsetParam);
+    // std::string kernel_name_woffset = std::string(kernel_name) + "_with_offset";
+    // CNkernel cnFuncWithOffsetParam;
+    // CNresult offsetRes = cnModuleGetKernel(
+    //     program->get(), kernel_name, &cnFuncWithOffsetParam);
 
     // If there is no kernel with global offset parameter we mark it as missing
-    if (offsetRes == CN_ERROR_NOT_FOUND) {
-      cuFuncWithOffsetParam = nullptr;
-    } else {
-      retErr = PI_CHECK_ERROR(offsetRes);
-    }
+    // if (offsetRes == CN_ERROR_NOT_FOUND) {
+    //   cnFuncWithOffsetParam = nullptr;
+    // } else {
+    //   retErr = PI_CHECK_ERROR(offsetRes);
+    // }
 
     retKernel = std::unique_ptr<_pi_kernel>(
-        new _pi_kernel{cuFunc, cuFuncWithOffsetParam, kernel_name, program,
+        new _pi_kernel{cnFunc, nullptr, kernel_name, program,
                        program->get_context()});
   } catch (pi_result err) {
     retErr = err;
@@ -2947,18 +2848,10 @@ pi_result cnrt_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
                                     size_t *param_value_size_ret) {
 
   // Here we want to query about a kernel's cuda blocks!
-  std::stringstream stream;
-  stream << "CNRT cnrt_piKernelGetGroupInfo not implemented \n";
-  sycl::detail::pi::die("Not implemented in CNRT backend");
-  if (kernel != nullptr) {
-
-    switch (param_name) {
-    default:
-      __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
-    }
-  }
-
-  return PI_ERROR_INVALID_KERNEL;
+  // std::stringstream ss;
+  // ss << "CNRT cnrt_piKernelGetGroupInfo not implemented \n";
+  cl::sycl::detail::pi::die("Not implemented in CNRT backend");
+  return {};
 }
 
 pi_result cnrt_piEnqueueKernelLaunch(
@@ -2975,14 +2868,9 @@ pi_result cnrt_piEnqueueKernelLaunch(
   assert(work_dim > 0);
   assert(work_dim < 4);
 
-  if (*global_work_size == 0) {
-    return cnrt_piEnqueueEventsWaitWithBarrier(
-        command_queue, num_events_in_wait_list, event_wait_list, event);
-  }
-
   // Set the number of threads per block to the number of threads per warp
   // by default unless user has provided a better number
-  size_t threadsPerBlock[3] = {32u, 1u, 1u};
+  size_t threadsPerBlock[3] = {1u, 1u, 1u};
   size_t maxWorkGroupSize = 0u;
   size_t maxThreadsPerBlock[3] = {};
   bool providedLocalWorkGroupSize = (local_work_size != nullptr);
@@ -3033,22 +2921,19 @@ pi_result cnrt_piEnqueueKernelLaunch(
       return PI_ERROR_INVALID_WORK_GROUP_SIZE;
     }
 
-    size_t blocksPerGrid[3] = {1u, 1u, 1u};
+    // size_t blocksPerGrid[3] = {1u, 1u, 1u};
 
-    for (size_t i = 0; i < work_dim; i++) {
-      blocksPerGrid[i] =
-          (global_work_size[i] + threadsPerBlock[i] - 1) / threadsPerBlock[i];
-    }
+    // for (size_t i = 0; i < work_dim; i++) {
+    //   blocksPerGrid[i] =
+    //       (global_work_size[i] + threadsPerBlock[i] - 1) / threadsPerBlock[i];
+    // }
 
     std::unique_ptr<_pi_event> retImplEv{nullptr};
 
-    pi_uint32 stream_token;
-    _pi_stream_guard guard;
-    CNqueue cnStream = command_queue->get_next_compute_stream(
-        num_events_in_wait_list, event_wait_list, guard, &stream_token);
+    CNqueue cnQueue = command_queue->get_next_compute_queue();
     CNkernel cuFunc = kernel->get();
 
-    retError = enqueueEventsWait(command_queue, cnStream,
+    retError = enqueueEventsWait(command_queue, cnQueue,
                                  num_events_in_wait_list, event_wait_list);
 
     // Set the implicit global offset parameter if kernel has offset variant
@@ -3067,7 +2952,7 @@ pi_result cnrt_piEnqueueKernelLaunch(
                                       cuda_implicit_offset);
     }
 
-    auto &argIndices = kernel->get_arg_indices();
+    // auto &argIndices = kernel->get_arg_indices();
 
     if (event) {
       retImplEv = std::unique_ptr<_pi_event>(
@@ -3097,9 +2982,22 @@ pi_result cnrt_piEnqueueKernelLaunch(
       //     cuFunc, CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES, env_val));
     }
 
-    retError = PI_CHECK_ERROR(cnInvokeKernel(
-        cuFunc, threadsPerBlock[0], threadsPerBlock[1], threadsPerBlock[2], CN_KERNEL_CLASS_BLOCK, local_size,
-        cnStream, const_cast<void **>(argIndices.data()), nullptr));
+    CNaddr *params = kernel->get_kernel_params();
+    void *extra[] = {CN_INVOKE_PARAM_BUFFER_POINTER, (void *)(params),
+                     CN_INVOKE_PARAM_BUFFER_SIZE,
+                     (void *)(kernel->get_num_args() * sizeof(CNaddr)),
+                     CN_INVOKE_PARAM_END};
+    auto chooseKernelClass = [](int n) -> KernelClass {
+      assert(n > 0);
+      // 4 clusters are available
+      if (n % 16 == 0)
+        return CN_KERNEL_CLASS_UNION4;
+      if (n % 8 == 0)
+        return CN_KERNEL_CLASS_UNION2;
+      if (n % 4 == 0)
+        return CN_KERNEL_CLASS_UNION;
+      return CN_KERNEL_CLASS_BLOCK;
+    };
     if (local_size != 0)
       kernel->clear_local_size();
 
@@ -3626,7 +3524,7 @@ pi_result cnrt_piEventRelease(pi_event event) {
 
 /// Enqueues a wait on the given CNqueue for all events.
 /// See \ref enqueueEventWait
-/// TODO: Add support for multiple streams once the Event class is properly
+/// TODO: Add support for multiple queues once the Event class is properly
 /// refactored.
 ///
 pi_result cnrt_piEnqueueEventsWait(pi_queue command_queue,
@@ -3653,8 +3551,8 @@ pi_result cnrt_piEnqueueEventsWaitWithBarrier(pi_queue command_queue,
                                               pi_uint32 num_events_in_wait_list,
                                               const pi_event *event_wait_list,
                                               pi_event *event) {
-  // This function makes one stream work on the previous work (or work
-  // represented by input events) and then all future work waits on that stream.
+  // This function makes one queue work on the previous work (or work
+  // represented by input events) and then all future work waits on that queue.
   if (!command_queue) {
     return PI_ERROR_INVALID_QUEUE;
   }
@@ -3663,57 +3561,17 @@ pi_result cnrt_piEnqueueEventsWaitWithBarrier(pi_queue command_queue,
 
   try {
     ScopedContext active(command_queue->get_context());
-    pi_uint32 stream_token;
-    _pi_stream_guard guard;
-    CNqueue cnStream = command_queue->get_next_compute_stream(
-        num_events_in_wait_list, event_wait_list, guard, &stream_token);
-    {
-      std::lock_guard<std::mutex> guard(command_queue->barrier_mutex_);
-      if (command_queue->barrier_event_ == nullptr) {
-        PI_CHECK_ERROR(cnCreateNotifier(&command_queue->barrier_event_,
-                                     CN_NOTIFIER_DISABLE_TIMING_ALL));
-      }
-      if (num_events_in_wait_list == 0) { //  wait on all work
-        if (command_queue->barrier_tmp_event_ == nullptr) {
-          PI_CHECK_ERROR(cnCreateNotifier(&command_queue->barrier_tmp_event_,
-                                       CN_NOTIFIER_DISABLE_TIMING_ALL));
-        }
-        command_queue->sync_streams(
-            [cnStream,
-             tmp_event = command_queue->barrier_tmp_event_](CNqueue s) {
-              if (cnStream != s) {
-                // record a new CNRT event on every stream and make one stream
-                // wait for these events
-                PI_CHECK_ERROR(cnPlaceNotifier(tmp_event, s));
-                PI_CHECK_ERROR(cnQueueWaitNotifier(cnStream, tmp_event));
-              }
-            });
-      } else { // wait just on given events
-        forLatestEvents(event_wait_list, num_events_in_wait_list,
-                        [cnStream](pi_event event) -> pi_result {
-                          if (event->get_queue()->has_been_synchronized(
-                                  event->get_compute_stream_token())) {
-                            return PI_SUCCESS;
-                          } else {
-                            return PI_CHECK_ERROR(
-                                cnQueueWaitNotifier(cnStream, event->get()));
-                          }
-                        });
-      }
 
-      result = PI_CHECK_ERROR(
-          cnPlaceNotifier(command_queue->barrier_event_, cnStream));
-      for (unsigned int i = 0;
-           i < command_queue->compute_applied_barrier_.size(); i++) {
-        command_queue->compute_applied_barrier_[i] = false;
+    if (event_wait_list) {
+      auto result =
+          forLatestEvents(event_wait_list, num_events_in_wait_list,
+                          [command_queue](pi_event event) -> pi_result {
+                            return enqueueEventWait(command_queue, event);
+                          });
+
+      if (result != PI_SUCCESS) {
+        return result;
       }
-      for (unsigned int i = 0;
-           i < command_queue->transfer_applied_barrier_.size(); i++) {
-        command_queue->transfer_applied_barrier_[i] = false;
-      }
-    }
-    if (result != PI_SUCCESS) {
-      return result;
     }
 
     if (event) {
@@ -3909,7 +3767,7 @@ pi_result cnrt_piSamplerRelease(pi_sampler sampler) {
 /// If the source and/or destination is on the device, src_ptr and/or dst_ptr
 /// must be a pointer to a CNaddr
 static pi_result commonEnqueueMemBufferCopyRect(
-    CNqueue cn_stream, pi_buff_rect_region region, const void *src_ptr,
+    CNqueue cn_queue, pi_buff_rect_region region, const void *src_ptr,
     const CN_memory_type src_type, pi_buff_rect_offset src_offset,
     size_t src_row_pitch, size_t src_slice_pitch, void *dst_ptr,
     const CN_memory_type dst_type, pi_buff_rect_offset dst_offset,
@@ -3922,8 +3780,8 @@ static pi_result commonEnqueueMemBufferCopyRect(
   assert(src_type == CN_MEMORYTYPE_DEVICE  || src_type == CN_MEMORYTYPE_HOST);
   assert(dst_type == CN_MEMORYTYPE_DEVICE  || dst_type == CN_MEMORYTYPE_HOST);
 
-  std::stringstream stream;
-  stream << "CNRT commonEnqueueMemBufferCopyRect ??? \n";
+  std::stringstream queue;
+  queue << "CNRT commonEnqueueMemBufferCopyRect ??? \n";
 
   CNmemcpy3dParam params = {};
 
@@ -3964,9 +3822,9 @@ pi_result cnrt_piEnqueueMemBufferReadRect(
 
   try {
     ScopedContext active(command_queue->get_context());
-    CNqueue cnStream = command_queue->get_next_transfer_stream();
+    CNqueue cnQueue = command_queue->get_next_transfer_queue();
 
-    retErr = enqueueEventsWait(command_queue, cnStream, num_events_in_wait_list,
+    retErr = enqueueEventsWait(command_queue, cnQueue, num_events_in_wait_list,
                                event_wait_list);
 
     if (event) {
@@ -3976,7 +3834,7 @@ pi_result cnrt_piEnqueueMemBufferReadRect(
     }
 
     retErr = commonEnqueueMemBufferCopyRect(
-        cnStream, region, &devPtr, CN_MEMORYTYPE_DEVICE , buffer_offset,
+        cnQueue, region, &devPtr, CN_MEMORYTYPE_DEVICE , buffer_offset,
         buffer_row_pitch, buffer_slice_pitch, ptr, CN_MEMORYTYPE_HOST,
         host_offset, host_row_pitch, host_slice_pitch);
 
@@ -3985,7 +3843,7 @@ pi_result cnrt_piEnqueueMemBufferReadRect(
     }
 
     if (blocking_read) {
-      retErr = PI_CHECK_ERROR(cnQueueSync(cnStream));
+      retErr = PI_CHECK_ERROR(cnQueueSync(cnQueue));
     }
 
     if (event) {
@@ -4015,8 +3873,8 @@ pi_result cnrt_piEnqueueMemBufferWriteRect(
 
   try {
     ScopedContext active(command_queue->get_context());
-    CNqueue cnStream = command_queue->get_next_transfer_stream();
-    retErr = enqueueEventsWait(command_queue, cnStream, num_events_in_wait_list,
+    CNqueue cnQueue = command_queue->get_next_transfer_queue();
+    retErr = enqueueEventsWait(command_queue, cnQueue, num_events_in_wait_list,
                                event_wait_list);
 
     if (event) {
@@ -4026,7 +3884,7 @@ pi_result cnrt_piEnqueueMemBufferWriteRect(
     }
 
     retErr = commonEnqueueMemBufferCopyRect(
-        cnStream, region, ptr, CN_MEMORYTYPE_HOST, host_offset, host_row_pitch,
+        cnQueue, region, ptr, CN_MEMORYTYPE_HOST, host_offset, host_row_pitch,
         host_slice_pitch, &devPtr, CN_MEMORYTYPE_DEVICE , buffer_offset,
         buffer_row_pitch, buffer_slice_pitch);
 
@@ -4035,7 +3893,7 @@ pi_result cnrt_piEnqueueMemBufferWriteRect(
     }
 
     if (blocking_write) {
-      retErr = PI_CHECK_ERROR(cnQueueSync(cnStream));
+      retErr = PI_CHECK_ERROR(cnQueueSync(cnQueue));
     }
 
     if (event) {
@@ -4064,8 +3922,8 @@ pi_result cnrt_piEnqueueMemBufferCopy(pi_queue command_queue, pi_mem src_buffer,
     ScopedContext active(command_queue->get_context());
     pi_result result;
 
-    auto stream = command_queue->get_next_transfer_stream();
-    result = enqueueEventsWait(command_queue, stream, num_events_in_wait_list,
+    auto cnQueue = command_queue->get_next_transfer_queue();
+    result = enqueueEventsWait(command_queue, cnQueue, num_events_in_wait_list,
                                event_wait_list);
 
     if (event) {
@@ -4077,7 +3935,7 @@ pi_result cnrt_piEnqueueMemBufferCopy(pi_queue command_queue, pi_mem src_buffer,
     auto src = src_buffer->mem_.buffer_mem_.get() + src_offset;
     auto dst = dst_buffer->mem_.buffer_mem_.get() + dst_offset;
 
-    result = PI_CHECK_ERROR(cnMemcpyDtoDAsync(dst, src, size, stream));
+    result = PI_CHECK_ERROR(cnMemcpyDtoDAsync(dst, src, size, cnQueue));
 
     if (event) {
       result = retImplEv->record();
@@ -4111,8 +3969,8 @@ pi_result cnrt_piEnqueueMemBufferCopyRect(
 
   try {
     ScopedContext active(command_queue->get_context());
-    CNqueue cnStream = command_queue->get_next_transfer_stream();
-    retErr = enqueueEventsWait(command_queue, cnStream, num_events_in_wait_list,
+    CNqueue cnQueue = command_queue->get_next_transfer_queue();
+    retErr = enqueueEventsWait(command_queue, cnQueue, num_events_in_wait_list,
                                event_wait_list);
 
     if (event) {
@@ -4122,7 +3980,7 @@ pi_result cnrt_piEnqueueMemBufferCopyRect(
     }
 
     retErr = commonEnqueueMemBufferCopyRect(
-        cnStream, region, &srcPtr, CN_MEMORYTYPE_DEVICE , src_origin,
+        cnQueue, region, &srcPtr, CN_MEMORYTYPE_DEVICE , src_origin,
         src_row_pitch, src_slice_pitch, &dstPtr, CN_MEMORYTYPE_DEVICE ,
         dst_origin, dst_row_pitch, dst_slice_pitch);
 
@@ -4165,9 +4023,9 @@ pi_result cnrt_piEnqueueMemBufferFill(pi_queue command_queue, pi_mem buffer,
   try {
     ScopedContext active(command_queue->get_context());
 
-    auto stream = command_queue->get_next_transfer_stream();
+    auto cnQueue = command_queue->get_next_transfer_queue();
     pi_result result;
-    result = enqueueEventsWait(command_queue, stream, num_events_in_wait_list,
+    result = enqueueEventsWait(command_queue, cnQueue, num_events_in_wait_list,
                                event_wait_list);
 
     if (event) {
@@ -4183,17 +4041,17 @@ pi_result cnrt_piEnqueueMemBufferFill(pi_queue command_queue, pi_mem buffer,
     switch (pattern_size) {
     case 1: {
       auto value = *static_cast<const uint8_t *>(pattern);
-      result = PI_CHECK_ERROR(cnMemsetD8Async(dstDevice, value, N, stream));
+      result = PI_CHECK_ERROR(cnMemsetD8Async(dstDevice, value, N, cnQueue));
       break;
     }
     case 2: {
       auto value = *static_cast<const uint16_t *>(pattern);
-      result = PI_CHECK_ERROR(cnMemsetD16Async(dstDevice, value, N, stream));
+      result = PI_CHECK_ERROR(cnMemsetD16Async(dstDevice, value, N, cnQueue));
       break;
     }
     case 4: {
       auto value = *static_cast<const uint32_t *>(pattern);
-      result = PI_CHECK_ERROR(cnMemsetD32Async(dstDevice, value, N, stream));
+      result = PI_CHECK_ERROR(cnMemsetD32Async(dstDevice, value, N, cnQueue));
       break;
     }
     default: {
@@ -4218,7 +4076,7 @@ pi_result cnrt_piEnqueueMemBufferFill(pi_queue command_queue, pi_mem buffer,
         // set all of the pattern chunks
         //TODO[mlu]: there is no cnMemsetD2D32Async
         // result = PI_CHECK_ERROR(
-        //     cuMemsetD2D32Async(offset_ptr, pattern_size, value, 1, N, stream));
+        //     cuMemsetD2D32Async(offset_ptr, pattern_size, value, 1, N, queue));
       }
 
       break;
@@ -4264,7 +4122,7 @@ pi_result cnrt_piEnqueueMemBufferFill(pi_queue command_queue, pi_mem buffer,
 /// If the source and/or destination is an array, src_ptr and/or dst_ptr
 /// must be a pointer to a CUarray
 static pi_result commonEnqueueMemImageNDCopy(
-    CNqueue cn_stream, pi_mem_type img_type, const size_t *region,
+    CNqueue cn_queue, pi_mem_type img_type, const size_t *region,
     const void *src_ptr, const CN_memory_type src_type,
     const size_t *src_offset, void *dst_ptr, const CN_memory_type dst_type,
     const size_t *dst_offset) {
@@ -4487,8 +4345,8 @@ pi_result cnrt_piextUSMFree(pi_context context, void *ptr) {
   pi_result result = PI_SUCCESS;
   try {
     ScopedContext active(context);
-    std::stringstream stream;
-    stream << "CNDrv cnrt_piextUSMFree  not implemented \n";
+    std::stringstream queue;
+    queue << "CNDrv cnrt_piextUSMFree  not implemented \n";
     result = PI_CHECK_ERROR(cnFree((CNaddr)ptr));
   } catch (pi_result error) {
     result = error;
@@ -4508,11 +4366,10 @@ pi_result cnrt_piextUSMEnqueueMemset(pi_queue queue, void *ptr, pi_int32 value,
 
   try {
     ScopedContext active(queue->get_context());
-    pi_uint32 stream_token;
-    _pi_stream_guard guard;
-    CNqueue cnStream = queue->get_next_compute_stream(
-        num_events_in_waitlist, events_waitlist, guard, &stream_token);
-    result = enqueueEventsWait(queue, cnStream, num_events_in_waitlist,
+    pi_uint32 queue_token;
+    // _pi_queue_guard guard;
+    CNqueue cnQueue = queue->get();
+    result = enqueueEventsWait(queue, cnQueue, num_events_in_waitlist,
                                events_waitlist);
     if (event) {
       event_ptr = std::unique_ptr<_pi_event>(_pi_event::make_native(
@@ -4520,7 +4377,7 @@ pi_result cnrt_piextUSMEnqueueMemset(pi_queue queue, void *ptr, pi_int32 value,
       event_ptr->start();
     }
     result = PI_CHECK_ERROR(cnMemsetD8Async(
-        (CNaddr)ptr, (unsigned char)value & 0xFF, count, cnStream));
+        (CNaddr)ptr, (unsigned char)value & 0xFF, count, cnQueue));
     if (event) {
       result = event_ptr->record();
       *event = event_ptr.release();
@@ -4546,8 +4403,8 @@ pi_result cnrt_piextUSMEnqueueMemcpy(pi_queue queue, pi_bool blocking,
 
   try {
     ScopedContext active(queue->get_context());
-    CNqueue cnStream = queue->get_next_transfer_stream();
-    result = enqueueEventsWait(queue, cnStream, num_events_in_waitlist,
+    CNqueue cnQueue = queue->get();
+    result = enqueueEventsWait(queue, cnQueue, num_events_in_waitlist,
                                events_waitlist);
     if (event) {
       event_ptr = std::unique_ptr<_pi_event>(_pi_event::make_native(
@@ -4555,12 +4412,12 @@ pi_result cnrt_piextUSMEnqueueMemcpy(pi_queue queue, pi_bool blocking,
       event_ptr->start();
     }
     result = PI_CHECK_ERROR(cnMemcpyAsync(
-        (CNaddr)dst_ptr, (CNaddr)src_ptr, size, cnStream));
+        (CNaddr)dst_ptr, (CNaddr)src_ptr, size, cnQueue));
     if (event) {
       result = event_ptr->record();
     }
     if (blocking) {
-      result = PI_CHECK_ERROR(cnQueueSync(cnStream));
+      result = PI_CHECK_ERROR(cnQueueSync(cnQueue));
     }
     if (event) {
       *event = event_ptr.release();

@@ -52,14 +52,10 @@ pi_result cnrt_piMemRetain(pi_mem);
 pi_result cnrt_piMemRelease(pi_mem);
 pi_result cnrt_piKernelRetain(pi_kernel);
 pi_result cnrt_piKernelRelease(pi_kernel);
-pi_result cnrt_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
-                                    pi_kernel_group_info param_name,
-                                    size_t param_value_size, void *param_value,
-                                    size_t *param_value_size_ret);
 /// \endcond
 }
 
-using _pi_stream_guard = std::unique_lock<std::mutex>;
+// using _pi_queue_guard = std::unique_lock<std::mutex>;
 
 /// A PI platform stores all known PI devices,
 ///  in the CNRT plugin this is just a vector of
@@ -388,56 +384,44 @@ struct _pi_mem {
 ///
 struct _pi_queue {
   using native_type = CNqueue;
-  static constexpr int default_num_compute_streams = 128;
-  static constexpr int default_num_transfer_streams = 64;
-
-  std::vector<native_type> compute_streams_;
-  std::vector<native_type> transfer_streams_;
-  // delay_compute_ keeps track of which streams have been recently reused and
-  // their next use should be delayed. If a stream has been recently reused it
+  static constexpr int default_num_compute_queues = 128;
+  static constexpr int default_num_transfer_queues = 64;
+  std::vector<native_type> compute_queues_;
+  std::vector<native_type> transfer_queues_;
+  // delay_compute_ keeps track of which queues have been recently reused and
+  // their next use should be delayed. If a queue has been recently reused it
   // will be skipped the next time it would be selected round-robin style. When
   // skipped, its delay flag is cleared.
-  std::vector<bool> delay_compute_;
-  // keep track of which streams have applied barrier
-  std::vector<bool> compute_applied_barrier_;
-  std::vector<bool> transfer_applied_barrier_;
+  // keep track of which queues have applied barrier
   _pi_context *context_;
   _pi_device *device_;
   pi_queue_properties properties_;
-  CNnotifier barrier_event_ = nullptr;
-  CNnotifier barrier_tmp_event_ = nullptr;
   std::atomic_uint32_t refCount_;
   std::atomic_uint32_t eventCount_;
-  std::atomic_uint32_t compute_stream_idx_;
-  std::atomic_uint32_t transfer_stream_idx_;
-  unsigned int num_compute_streams_;
-  unsigned int num_transfer_streams_;
-  unsigned int last_sync_compute_streams_;
-  unsigned int last_sync_transfer_streams_;
+  std::atomic_uint32_t compute_queue_idx_;
+  std::atomic_uint32_t transfer_queue_idx_;
+  unsigned int num_compute_queues_;
+  unsigned int num_transfer_queues_;
+  unsigned int last_sync_compute_queues_;
+  unsigned int last_sync_transfer_queues_;
   unsigned int flags_;
-  // When compute_stream_sync_mutex_ and compute_stream_mutex_ both need to be
-  // locked at the same time, compute_stream_sync_mutex_ should be locked first
+  std::mutex compute_queue_mutex_;
+  std::mutex transfer_queue_mutex_;
+  // When compute_queue_sync_mutex_ and compute_queue_mutex_ both need to be
+  // locked at the same time, compute_queue_sync_mutex_ should be locked first
   // to avoid deadlocks
-  std::mutex compute_stream_sync_mutex_;
-  std::mutex compute_stream_mutex_;
-  std::mutex transfer_stream_mutex_;
-  std::mutex barrier_mutex_;
-  bool has_ownership_;
 
-  _pi_queue(std::vector<CNqueue> &&compute_streams,
-            std::vector<CNqueue> &&transfer_streams, _pi_context *context,
+  _pi_queue(std::vector<CNqueue> &&compute_queues,
+            std::vector<CNqueue> &&transfer_queues,_pi_context *context,
             _pi_device *device, pi_queue_properties properties,
-            unsigned int flags, bool backend_owns = true)
-      : compute_streams_{std::move(compute_streams)},
-        transfer_streams_{std::move(transfer_streams)},
-        delay_compute_(compute_streams_.size(), false),
-        compute_applied_barrier_(compute_streams_.size()),
-        transfer_applied_barrier_(transfer_streams_.size()), context_{context},
+            unsigned int flags)
+      : compute_queues_{std::move(compute_queues)},
+        transfer_queues_{std::move(transfer_queues)}, context_{context},
         device_{device}, properties_{properties}, refCount_{1}, eventCount_{0},
-        compute_stream_idx_{0}, transfer_stream_idx_{0},
-        num_compute_streams_{0}, num_transfer_streams_{0},
-        last_sync_compute_streams_{0}, last_sync_transfer_streams_{0},
-        flags_(flags), has_ownership_{backend_owns} {
+        compute_queue_idx_{0}, transfer_queue_idx_{0},
+        num_compute_queues_{0}, num_transfer_queues_{0},
+        last_sync_compute_queues_{0}, last_sync_transfer_queues_{0},
+        flags_(flags) {
     cnrt_piContextRetain(context_);
     cnrt_piDeviceRetain(device_);
   }
@@ -447,157 +431,80 @@ struct _pi_queue {
     cnrt_piDeviceRelease(device_);
   }
 
-  void compute_stream_wait_for_barrier_if_needed(CNqueue stream,
-                                                 pi_uint32 stream_i);
-  void transfer_stream_wait_for_barrier_if_needed(CNqueue stream,
-                                                  pi_uint32 stream_i);
-
-  // get_next_compute/transfer_stream() functions return streams from
+  // get_next_compute/transfer_queue() functions return queues from
   // appropriate pools in round-robin fashion
-  native_type get_next_compute_stream(pi_uint32 *stream_token = nullptr);
-  // this overload tries select a stream that was used by one of dependancies.
-  // If that is not possible returns a new stream. If a stream is reused it
-  // returns a lock that needs to remain locked as long as the stream is in use
-  native_type get_next_compute_stream(pi_uint32 num_events_in_wait_list,
-                                      const pi_event *event_wait_list,
-                                      _pi_stream_guard &guard,
-                                      pi_uint32 *stream_token = nullptr);
-  native_type get_next_transfer_stream();
-  native_type get() { return get_next_compute_stream(); };
+  native_type get_next_compute_queue();
+  native_type get_next_transfer_queue();
+  native_type get() { return get_next_compute_queue(); };
 
-  bool has_been_synchronized(pi_uint32 stream_token) {
-    // stream token not associated with one of the compute streams
-    if (stream_token == std::numeric_limits<pi_uint32>::max()) {
-      return false;
-    }
-    return last_sync_compute_streams_ >= stream_token;
-  }
-
-  bool can_reuse_stream(pi_uint32 stream_token) {
-    // stream token not associated with one of the compute streams
-    if (stream_token == std::numeric_limits<pi_uint32>::max()) {
-      return false;
-    }
-    // If the command represented by the stream token was not the last command
-    // enqueued to the stream we can not reuse the stream - we need to allow for
-    // commands enqueued after it and the one we are about to enqueue to run
-    // concurrently
-    bool is_last_command =
-        (compute_stream_idx_ - stream_token) <= compute_streams_.size();
-    // If there was a barrier enqueued to the queue after the command
-    // represented by the stream token we should not reuse the stream, as we can
-    // not take that stream into account for the bookkeeping for the next
-    // barrier - such a stream would not be synchronized with. Performance-wise
-    // it does not matter that we do not reuse the stream, as the work
-    // represented by the stream token is guaranteed to be complete by the
-    // barrier before any work we are about to enqueue to the stream will start,
-    // so the event does not need to be synchronized with.
-    return is_last_command && !has_been_synchronized(stream_token);
-  }
-
-  template <typename T> bool all_of(T &&f) {
+  template <typename T> void for_each_queue(T &&f) {
     {
-      std::lock_guard<std::mutex> compute_guard(compute_stream_mutex_);
+      std::lock_guard<std::mutex> compute_guard(compute_queue_mutex_);
       unsigned int end =
-          std::min(static_cast<unsigned int>(compute_streams_.size()),
-                   num_compute_streams_);
-      if (!std::all_of(compute_streams_.begin(), compute_streams_.begin() + end,
-                       f))
-        return false;
-    }
-    {
-      std::lock_guard<std::mutex> transfer_guard(transfer_stream_mutex_);
-      unsigned int end =
-          std::min(static_cast<unsigned int>(transfer_streams_.size()),
-                   num_transfer_streams_);
-      if (!std::all_of(transfer_streams_.begin(),
-                       transfer_streams_.begin() + end, f))
-        return false;
-    }
-    return true;
-  }
-
-  template <typename T> void for_each_stream(T &&f) {
-    {
-      std::lock_guard<std::mutex> compute_guard(compute_stream_mutex_);
-      unsigned int end =
-          std::min(static_cast<unsigned int>(compute_streams_.size()),
-                   num_compute_streams_);
+          std::min(static_cast<unsigned int>(compute_queues_.size()),
+                   num_compute_queues_);
       for (unsigned int i = 0; i < end; i++) {
-        f(compute_streams_[i]);
+        f(compute_queues_[i]);
       }
     }
     {
-      std::lock_guard<std::mutex> transfer_guard(transfer_stream_mutex_);
+      std::lock_guard<std::mutex> transfer_guard(transfer_queue_mutex_);
       unsigned int end =
-          std::min(static_cast<unsigned int>(transfer_streams_.size()),
-                   num_transfer_streams_);
+          std::min(static_cast<unsigned int>(transfer_queues_.size()),
+                   num_transfer_queues_);
       for (unsigned int i = 0; i < end; i++) {
-        f(transfer_streams_[i]);
+        f(transfer_queues_[i]);
       }
     }
   }
 
-  template <bool ResetUsed = false, typename T> void sync_streams(T &&f) {
-    auto sync_compute = [&f, &streams = compute_streams_,
-                         &delay = delay_compute_](unsigned int start,
-                                                  unsigned int stop) {
+  template <typename T> void sync_queues(T &&f) {
+    auto sync = [&f](const std::vector<CNqueue> &queues, unsigned int start,
+                     unsigned int stop) {
       for (unsigned int i = start; i < stop; i++) {
-        f(streams[i]);
-        delay[i] = false;
-      }
-    };
-    auto sync_transfer = [&f, &streams = transfer_streams_](unsigned int start,
-                                                            unsigned int stop) {
-      for (unsigned int i = start; i < stop; i++) {
-        f(streams[i]);
+        f(queues[i]);
       }
     };
     {
-      unsigned int size = static_cast<unsigned int>(compute_streams_.size());
-      std::lock_guard compute_sync_guard(compute_stream_sync_mutex_);
-      std::lock_guard<std::mutex> compute_guard(compute_stream_mutex_);
-      unsigned int start = last_sync_compute_streams_;
-      unsigned int end = num_compute_streams_ < size
-                             ? num_compute_streams_
-                             : compute_stream_idx_.load();
-      if (ResetUsed) {
-        last_sync_compute_streams_ = end;
-      }
+      unsigned int size = static_cast<unsigned int>(compute_queues_.size());
+      std::lock_guard<std::mutex> compute_guard(compute_queue_mutex_);
+      unsigned int start = last_sync_compute_queues_;
+      unsigned int end = num_compute_queues_ < size
+                             ? num_compute_queues_
+                             : compute_queue_idx_.load();
+      last_sync_compute_queues_ = end;
       if (end - start >= size) {
-        sync_compute(0, size);
+        sync(compute_queues_, 0, size);
       } else {
         start %= size;
         end %= size;
-        if (start <= end) {
-          sync_compute(start, end);
+        if (start < end) {
+          sync(compute_queues_, start, end);
         } else {
-          sync_compute(start, size);
-          sync_compute(0, end);
+          sync(compute_queues_, start, size);
+          sync(compute_queues_, 0, end);
         }
       }
     }
     {
-      unsigned int size = static_cast<unsigned int>(transfer_streams_.size());
+      unsigned int size = static_cast<unsigned int>(transfer_queues_.size());
       if (size > 0) {
-        std::lock_guard<std::mutex> transfer_guard(transfer_stream_mutex_);
-        unsigned int start = last_sync_transfer_streams_;
-        unsigned int end = num_transfer_streams_ < size
-                               ? num_transfer_streams_
-                               : transfer_stream_idx_.load();
-        if (ResetUsed) {
-          last_sync_transfer_streams_ = end;
-        }
+        std::lock_guard<std::mutex> transfer_guard(transfer_queue_mutex_);
+        unsigned int start = last_sync_transfer_queues_;
+        unsigned int end = num_transfer_queues_ < size
+                               ? num_transfer_queues_
+                               : transfer_queue_idx_.load();
+        last_sync_transfer_queues_ = end;
         if (end - start >= size) {
-          sync_transfer(0, size);
+          sync(transfer_queues_, 0, size);
         } else {
           start %= size;
           end %= size;
-          if (start <= end) {
-            sync_transfer(start, end);
+          if (start < end) {
+            sync(transfer_queues_, start, end);
           } else {
-            sync_transfer(start, size);
-            sync_transfer(0, end);
+            sync(transfer_queues_, start, size);
+            sync(transfer_queues_, 0, end);
           }
         }
       }
@@ -616,7 +523,6 @@ struct _pi_queue {
 
   pi_uint32 get_next_event_id() noexcept { return ++eventCount_; }
 
-  bool backend_has_ownership() const noexcept { return has_ownership_; }
 };
 
 typedef void (*pfn_notify)(pi_event event, pi_int32 eventCommandStatus,
@@ -637,9 +543,9 @@ public:
 
   pi_queue get_queue() const noexcept { return queue_; }
 
-  CNqueue get_stream() const noexcept { return stream_; }
+  CNqueue get_native_queue() const noexcept { return native_queue_; }
 
-  pi_uint32 get_compute_stream_token() const noexcept { return streamToken_; }
+  pi_uint32 get_compute_queue_token() const noexcept { return queueToken_; }
 
   pi_command_type get_command_type() const noexcept { return commandType_; }
 
@@ -687,8 +593,7 @@ public:
 
   // construct a native CNRT. This maps closely to the underlying CNRT event.
   static pi_event
-  make_native(pi_command_type type, pi_queue queue,
-              pi_uint32 stream_token = std::numeric_limits<pi_uint32>::max()) {
+  make_native(pi_command_type type, pi_queue queue) {
     return new _pi_event(type, queue->get_context(), queue);
   }
 
@@ -725,7 +630,7 @@ private:
                     // PI event has started or not
                     //
 
-  pi_uint32 streamToken_;
+  pi_uint32 queueToken_;
   pi_uint32 eventId_; // Queue identifier of the event.
 
   native_type evEnd_; // CNRT event handle. If this _pi_event represents a user
@@ -735,12 +640,10 @@ private:
 
   native_type evQueued_; // CNRT event handle associated with the time
                          // the command was enqueued
+  pi_queue queue_;
 
-  pi_queue queue_; // pi_queue associated with the event. If this is a user
+  CNqueue native_queue_; // pi_queue associated with the event. If this is a user
                    // event, this will be nullptr.
-
-  CNqueue stream_; // CNqueue associated with the event. If this is a user
-                    // event, this will be uninitialized.
 
   pi_context context_; // pi_context associated with the event. If this is a
                        // native event, this will be the same context associated
@@ -813,6 +716,7 @@ struct _pi_kernel {
   pi_context context_;
   pi_program program_;
   std::atomic_uint32_t refCount_;
+  CNaddr *kernel_params_;
 
   static constexpr pi_uint32 REQD_THREADS_PER_BLOCK_DIMENSIONS = 3u;
   size_t reqdThreadsPerBlock_[REQD_THREADS_PER_BLOCK_DIMENSIONS];
@@ -905,15 +809,16 @@ struct _pi_kernel {
   _pi_kernel(CNkernel func, CNkernel funcWithOffsetParam, const char *name,
              pi_program program, pi_context ctxt)
       : function_{func}, functionWithOffsetParam_{funcWithOffsetParam},
-        name_{name}, context_{ctxt}, program_{program}, refCount_{1} {
+        name_{name}, context_{ctxt}, program_{program}, refCount_{1},
+        kernel_params_{nullptr} {
     cnrt_piProgramRetain(program_);
     cnrt_piContextRetain(context_);
     /// Note: this code assumes that there is only one device per context
-    pi_result retError = cnrt_piKernelGetGroupInfo(
-        this, ctxt->get_device(), PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
-        sizeof(reqdThreadsPerBlock_), reqdThreadsPerBlock_, nullptr);
-    (void)retError;
-    assert(retError == PI_SUCCESS);
+    // pi_result retError = cnrt_piKernelGetGroupInfo(
+    //     this, ctxt->get_device(), PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
+    //     sizeof(reqdThreadsPerBlock_), reqdThreadsPerBlock_, nullptr);
+    // (void)retError;
+    // assert(retError == PI_SUCCESS);
   }
 
   ~_pi_kernel() {
@@ -963,6 +868,33 @@ struct _pi_kernel {
 
   const arguments::args_index_t &get_arg_indices() const {
     return args_.get_indices();
+  }
+
+  void create_kernel_params() {
+    kernel_params_ = (CNaddr *)malloc(get_num_args() * sizeof(CNaddr));
+    auto argIndices = get_arg_indices();
+    const pi_uint32 MemStep = 4;
+    for (pi_uint32 i = 0; i < get_num_args(); i++) {
+      if (i % MemStep == 0) {
+        kernel_params_[i] = *(CNaddr *)(argIndices[i]);
+      } else {
+        kernel_params_[i] = *(int *)(argIndices[i]);
+      }
+      //std::cout<<"arg: "<<kernel_params_[i]<<std::endl;
+    }
+  }
+
+  CNaddr *get_kernel_params() {
+    if (kernel_params_ == nullptr) {
+      create_kernel_params();
+    }
+    return kernel_params_;
+  }
+
+  void free_kernel_params() {
+    assert(kernel_params_ != nullptr);
+    free(kernel_params_);
+    kernel_params_ = nullptr;
   }
 
   pi_uint32 get_local_size() const noexcept { return args_.get_local_size(); }
