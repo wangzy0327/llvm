@@ -2054,7 +2054,7 @@ static pi_result SetKernelParamsAndLaunch(
 
   if (HasLocalSize)
     LocalSize = &NDRDesc.LocalSize[0];
-  else {
+  else if(Plugin.getBackend() != backend::ext_oneapi_cnrt){ //skip piKernelGetGroupInfo if backend is cnrt
     Plugin.call<PiApiKind::piKernelGetGroupInfo>(
         Kernel, Queue->getDeviceImplPtr()->getHandleRef(),
         PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE, sizeof(RequiredWGSize),
