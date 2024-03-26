@@ -40,7 +40,10 @@ static const unsigned MLISAAddrSpaceMap[] = {
     1, // sycl_global_device
     1, // sycl_global_host
     101, // sycl_local
-    102, //sycl_wram
+    // 102, // bang_wram
+    // 103, // bang_ldram
+    // 104, // bang_param
+    // 105, // bang_local
     0, // sycl_private
     0, // ptr32_sptr
     0, // ptr32_uptr

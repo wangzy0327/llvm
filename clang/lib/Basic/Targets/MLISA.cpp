@@ -23,31 +23,31 @@ using namespace clang;
 using namespace clang::targets;
 
 // TODO: Re-define MLISA address space map
-static const unsigned MLISAAddrSpaceMap[] = {
-    0, // Default
-    1, // opencl_global
-    3, // opencl_local
-    4, // opencl_constant
-    0, // opencl_private
-    // FIXME: generic has to be added to the target
-    0,   // opencl_generic
-    1, // opencl_global_device
-    1, // opencl_global_host
-    1,   // cuda_device
-    4,   // cuda_constant
-    3,   // cuda_shared
-    0,   // ptr32_sptr
-    0,   // ptr32_uptr
-    0,   // ptr64
-    1,   // bang_device, similar to cuda_device
-    3,   // bang_shared, similar to cuda_shared
-    4,   // bang_const, similar to cuda_constant
-    101, // bang_nram
-    102, // bang_wram
-    103, // bang_ldram
-    104, // bang_param
-    105, // bang_local
-};
+// static const unsigned MLISAAddrSpaceMap[] = {
+//     0, // Default
+//     1, // opencl_global
+//     3, // opencl_local
+//     4, // opencl_constant
+//     0, // opencl_private
+//     // FIXME: generic has to be added to the target
+//     0,   // opencl_generic
+//     1, // opencl_global_device
+//     1, // opencl_global_host
+//     1,   // cuda_device
+//     4,   // cuda_constant
+//     3,   // cuda_shared
+//     0,   // ptr32_sptr
+//     0,   // ptr32_uptr
+//     0,   // ptr64
+//     1,   // bang_device, similar to cuda_device
+//     3,   // bang_shared, similar to cuda_shared
+//     4,   // bang_const, similar to cuda_constant
+//     101, // bang_nram
+//     102, // bang_wram
+//     103, // bang_ldram
+//     104, // bang_param
+//     105, // bang_local
+// };
 
 const Builtin::Info MLISATargetInfo::BuiltinInfo[] = {
 #define BUILTIN(ID, TYPE, ATTRS)                                               \

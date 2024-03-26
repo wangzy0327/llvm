@@ -38,7 +38,7 @@ static const unsigned DirectXAddrSpaceMap[] = {
     0, // sycl_global_host
     0, // sycl_local
     0, // sycl_private
-    0, // sycl_wram
+    // 0, // sycl_wram
     0, // ptr32_sptr
     0, // ptr32_uptr
     0  // ptr64
