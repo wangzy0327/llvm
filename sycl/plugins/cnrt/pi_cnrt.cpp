@@ -447,15 +447,6 @@ _pi_event::_pi_event(pi_command_type type, pi_context context, pi_queue queue)
   cnrt_piContextRetain(context_);
 }
 
-_pi_event::_pi_event(pi_context context, CNnotifier eventNative)
-    : commandType_{PI_COMMAND_TYPE_USER}, refCount_{1}, has_ownership_{false},
-      hasBeenWaitedOn_{false}, isRecorded_{false}, isStarted_{false},
-      queueToken_{std::numeric_limits<pi_uint32>::max()}, evEnd_{eventNative},
-      evStart_{nullptr}, evQueued_{nullptr}, queue_{nullptr}, context_{
-                                                                  context} {
-  cnrt_piContextRetain(context_);
-}
-
 _pi_event::~_pi_event() {
   if (queue_ != nullptr) {
     cnrt_piQueueRelease(queue_);
@@ -568,11 +559,7 @@ pi_result _pi_event::wait() {
 }
 
 pi_result _pi_event::release() {
-  if (!backend_has_ownership())
-    return PI_SUCCESS;
-
   assert(queue_ != nullptr);
-
   PI_CHECK_ERROR(cnDestroyNotifier(evEnd_));
 
   if (queue_->properties_ & PI_QUEUE_PROFILING_ENABLE) {
@@ -2075,26 +2062,26 @@ pi_result cnrt_piContextRelease(pi_context ctxt) {
     return PI_SUCCESS;
 
   if (!ctxt->is_primary()) {
-    CNcontext cuCtxt = ctxt->get();
+    CNcontext cnCtxt = ctxt->get();
     CNcontext current = nullptr;
     cnCtxGetCurrent(&current);
     // TODO[mlu] push context
-    // if (cuCtxt != current) {
-    //   PI_CHECK_ERROR(cuCtxPushCurrent(cuCtxt));
-    // }
+    if (cnCtxt != current) {
+      PI_CHECK_ERROR(cnCtxSetCurrent(cnCtxt));
+    }
     PI_CHECK_ERROR(cnCtxSync());
     cnCtxGetCurrent(&current);
-    // if (cuCtxt == current) {
-    //   PI_CHECK_ERROR(cuCtxPopCurrent(&current));
-    // }
-    return PI_CHECK_ERROR(cnCtxDestroy(cuCtxt));
+    if (cnCtxt == current) {
+      PI_CHECK_ERROR(cnCtxSetCurrent(NULL));
+    }
+    return PI_CHECK_ERROR(cnCtxDestroy(cnCtxt));
   }
 
   // Primary context is not destroyed, but released
-  CNdev cuDev = ctxt->get_device()->get();
-//   CNcontext current;
-//   cuCtxPopCurrent(&current);
-  return PI_CHECK_ERROR(cnSharedContextRelease(cuDev));
+  CNdev cnDev = ctxt->get_device()->get();
+  CNcontext current;
+  cnCtxSetCurrent(NULL);
+  return PI_CHECK_ERROR(cnSharedContextRelease(cnDev));
 }
 
 /// Gets the native CNRT handle of a PI context object
@@ -2173,21 +2160,10 @@ pi_result cnrt_piMemBufferCreate(pi_context context, pi_mem_flags flags,
     _pi_mem::mem_::buffer_mem_::alloc_mode allocMode =
         _pi_mem::mem_::buffer_mem_::alloc_mode::classic;
 
-    // if ((flags & PI_MEM_FLAGS_HOST_PTR_USE) && enableUseHostPtr) {
-    //   retErr = PI_CHECK_ERROR(
-    //       cuMemHostRegister(host_ptr, size, CU_MEMHOSTREGISTER_DEVICEMAP));
-    //   retErr = PI_CHECK_ERROR(cuMemHostGetDevicePointer(&ptr, host_ptr, 0));
-    //   allocMode = _pi_mem::mem_::buffer_mem_::alloc_mode::use_host_ptr;
-    // } else if (flags & PI_MEM_FLAGS_HOST_PTR_ALLOC) {
-    //   retErr = PI_CHECK_ERROR(cnMallocHost(&host_ptr, size));
-    //   retErr = PI_CHECK_ERROR(cuMemHostGetDevicePointer(&ptr, host_ptr, 0));
-    //   allocMode = _pi_mem::mem_::buffer_mem_::alloc_mode::alloc_host_ptr;
-    // } else {
-      retErr = PI_CHECK_ERROR(cnMalloc(&ptr, size));
-      if (flags & PI_MEM_FLAGS_HOST_PTR_COPY) {
-        allocMode = _pi_mem::mem_::buffer_mem_::alloc_mode::copy_in;
-      }
-    // }
+    retErr = PI_CHECK_ERROR(cnMalloc(&ptr, size));
+    if (flags & PI_MEM_FLAGS_HOST_PTR_COPY) {
+      allocMode = _pi_mem::mem_::buffer_mem_::alloc_mode::copy_in;
+    }
 
     if (retErr == PI_SUCCESS) {
       pi_mem parentBuffer = nullptr;
@@ -2253,21 +2229,17 @@ pi_result cnrt_piMemRelease(pi_mem memObj) {
       case _pi_mem::mem_::buffer_mem_::alloc_mode::classic:
         ret = PI_CHECK_ERROR(cnFree(uniqueMemObj->mem_.buffer_mem_.ptr_));
         break;
-    //   case _pi_mem::mem_::buffer_mem_::alloc_mode::use_host_ptr:
-    //     ret = PI_CHECK_ERROR(
-    //         cuMemHostUnregister(uniqueMemObj->mem_.buffer_mem_.hostPtr_));
-    //     break;
-    //   case _pi_mem::mem_::buffer_mem_::alloc_mode::alloc_host_ptr:
-    //     ret = PI_CHECK_ERROR(
-    //         cnFreeHost(uniqueMemObj->mem_.buffer_mem_.hostPtr_));
+      case _pi_mem::mem_::buffer_mem_::alloc_mode::use_host_ptr:
+        cl::sycl::detail::pi::die("This alloc mode use_host_ptr not implemented");
+        break;
+      case _pi_mem::mem_::buffer_mem_::alloc_mode::alloc_host_ptr:
+        ret = PI_CHECK_ERROR(
+            cnFreeHost(uniqueMemObj->mem_.buffer_mem_.hostPtr_));
       };
     } 
-    // else if (memObj->mem_type_ == _pi_mem::mem_type::surface) {
-    //   ret = PI_CHECK_ERROR(
-    //       cuSurfObjectDestroy(uniqueMemObj->mem_.surface_mem_.get_surface()));
-    //   ret = PI_CHECK_ERROR(
-    //       cuArrayDestroy(uniqueMemObj->mem_.surface_mem_.get_array()));
-    // }
+    else if (memObj->mem_type_ == _pi_mem::mem_type::surface) {
+      cl::sycl::detail::pi::die("This alloc mode surface not implemented");
+    }
 
   } catch (pi_result err) {
     ret = err;
@@ -2356,7 +2328,7 @@ pi_result cnrt_piMemBufferPartition(pi_mem parent_buffer, pi_mem_flags flags,
 }
 
 pi_result cnrt_piMemGetInfo(pi_mem, pi_mem_info, size_t, void *, size_t *) {
-  sycl::detail::pi::die("cnrt_piMemGetInfo not implemented");
+  cl::sycl::detail::pi::die("cnrt_piMemGetInfo not implemented");
 }
 
 /// Gets the native CNRT handle of a PI mem object
@@ -2441,21 +2413,6 @@ pi_result cnrt_piQueueCreate(pi_context context, pi_device device,
     return PI_ERROR_OUT_OF_RESOURCES;
   }
 }
-// pi_result cnrt_piextQueueCreate(pi_context Context, pi_device Device,
-//                                 pi_queue_properties *Properties,
-//                                 pi_queue *Queue) {
-//   assert(Properties);
-//   // Expect flags mask to be passed first.
-//   assert(Properties[0] == PI_QUEUE_FLAGS);
-//   if (Properties[0] != PI_QUEUE_FLAGS)
-//     return PI_ERROR_INVALID_VALUE;
-//   pi_queue_properties Flags = Properties[1];
-//   // Extra data isn't supported yet.
-//   assert(Properties[2] == 0);
-//   if (Properties[2] != 0)
-//     return PI_ERROR_INVALID_VALUE;
-//   return cnrt_piQueueCreate(Context, Device, Flags, Queue);
-// }
 
 pi_result cnrt_piQueueGetInfo(pi_queue command_queue, pi_queue_info param_name,
                               size_t param_value_size, void *param_value,
@@ -2475,27 +2432,6 @@ pi_result cnrt_piQueueGetInfo(pi_queue command_queue, pi_queue_info param_name,
   case PI_QUEUE_INFO_PROPERTIES:
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    command_queue->properties_);
-//   case PI_EXT_ONEAPI_QUEUE_INFO_EMPTY: {
-//     try {
-//       bool IsReady = command_queue->all_of([](CNqueue s) -> bool {
-//         const CNresult ret = cnQueryQueue(s);
-//         if (ret == CN_SUCCESS)
-//           return true;
-
-//         if (ret == CN_ERROR_NOT_READY )
-//           return false;
-
-//         PI_CHECK_ERROR(ret);
-//         return false;
-//       });
-//       return getInfo(param_value_size, param_value, param_value_size_ret,
-//                      IsReady);
-//     } catch (pi_result err) {
-//       return err;
-//     } catch (...) {
-//       return PI_ERROR_OUT_OF_RESOURCES;
-//     }
-//   }
   default:
     __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
   }
@@ -2520,9 +2456,6 @@ pi_result cnrt_piQueueRelease(pi_queue command_queue) {
 
   try {
     std::unique_ptr<_pi_queue> queueImpl(command_queue);
-
-    if (!command_queue->decrement_reference_count() > 0)
-      return PI_SUCCESS;
 
     ScopedContext active(command_queue->get_context());
 
@@ -2634,15 +2567,19 @@ pi_result cnrt_piEnqueueMemBufferWrite(pi_queue command_queue, pi_mem buffer,
     }
 
     retErr =
+        // PI_CHECK_ERROR(cnMemcpyHtoD(devPtr + offset, ptr, size));
         PI_CHECK_ERROR(cnMemcpyHtoDAsync(devPtr + offset, ptr, size, cnQueue));
 
     if (event) {
       retErr = retImplEv->record();
     }
 
-    if (blocking_write) {
+    // if (blocking_write) {
+    if(blocking_write){
+      std::cout<<"bloking_write flag is : "<<blocking_write<<std::endl;
       retErr = PI_CHECK_ERROR(cnQueueSync(cnQueue));
     }
+    // }
 
     if (event) {
       *event = retImplEv.release();
@@ -2670,8 +2607,9 @@ pi_result cnrt_piEnqueueMemBufferRead(pi_queue command_queue, pi_mem buffer,
     ScopedContext active(command_queue->get_context());
     CNqueue cnQueue = command_queue->get_next_transfer_queue();
 
-    retErr = cnrt_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
-                               event_wait_list, nullptr);
+
+    retErr = enqueueEventsWait(command_queue, cnQueue, num_events_in_wait_list,
+                               event_wait_list);
 
     if (event) {
       retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
@@ -2680,7 +2618,8 @@ pi_result cnrt_piEnqueueMemBufferRead(pi_queue command_queue, pi_mem buffer,
     }
 
     retErr =
-        PI_CHECK_ERROR(cnMemcpyDtoHAsync(ptr, devPtr + offset, size, cnQueue));      
+        PI_CHECK_ERROR(cnMemcpyDtoH(ptr, devPtr + offset, size));      
+        // PI_CHECK_ERROR(cnMemcpyDtoHAsync(ptr, devPtr + offset, size, cnQueue));      
 
     if (event) {
       retErr = retImplEv->record();
@@ -2781,11 +2720,21 @@ pi_result cnrt_piKernelSetArg(pi_kernel kernel, pi_uint32 arg_index,
   assert(kernel != nullptr);
   pi_result retErr = PI_SUCCESS;
   try {
-    if (arg_value) {
-      kernel->set_kernel_arg(arg_index, arg_size, arg_value);
-    } else {
+
+    int* flag = const_cast<int*>(reinterpret_cast<const int *> (arg_value));
+    if (*flag == 101) {
       kernel->set_kernel_local_arg(arg_index, arg_size);
+    // } else if (*flag == 102) {
+    //   kernel->set_kernel_wram_arg(arg_index, arg_size);
+    } else if(arg_value) {
+      kernel->set_kernel_arg(arg_index, arg_size, arg_value);
     }
+
+    // if (arg_value) {
+    //   kernel->set_kernel_arg(arg_index, arg_size, arg_value);
+    // } else {
+    //   kernel->set_kernel_local_arg(arg_index, arg_size);
+    // }
   } catch (pi_result err) {
     retErr = err;
   }
@@ -2998,6 +2947,13 @@ pi_result cnrt_piEnqueueKernelLaunch(
         return CN_KERNEL_CLASS_UNION;
       return CN_KERNEL_CLASS_BLOCK;
     };
+    KernelClass kc = chooseKernelClass(threadsPerBlock[0]);
+    kc = CN_KERNEL_CLASS_BLOCK;
+    retError = PI_CHECK_ERROR(
+        cnInvokeKernel(cuFunc, threadsPerBlock[0], threadsPerBlock[1],
+                       threadsPerBlock[2], kc, 0, cnQueue, nullptr, extra));
+    // retError = PI_CHECK_ERROR(cnQueueSync(cnQueue));
+
     if (local_size != 0)
       kernel->clear_local_size();
 
@@ -3612,15 +3568,17 @@ pi_result cnrt_piextEventCreateWithNativeHandle(pi_native_handle nativeHandle,
                                                 pi_context context,
                                                 bool ownNativeHandle,
                                                 pi_event *event) {
-  (void)ownNativeHandle;
-  assert(!ownNativeHandle);
+  cl::sycl::detail::pi::die(
+      "Creation of PI event from native handle not implemented");                                                  
+  // (void)ownNativeHandle;
+  // assert(!ownNativeHandle);
 
-  std::unique_ptr<_pi_event> event_ptr{nullptr};
+  // std::unique_ptr<_pi_event> event_ptr{nullptr};
 
-  *event = _pi_event::make_with_native(context,
-                                       reinterpret_cast<CNnotifier>(nativeHandle));
+  // *event = _pi_event::make_with_native(context,
+  //                                      reinterpret_cast<CNnotifier>(nativeHandle));
 
-  return PI_SUCCESS;
+  return {};
 }
 
 /// Creates a PI sampler object

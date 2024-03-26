@@ -30,8 +30,9 @@ typedef struct CNmodule_st *CNmodule;
 
 typedef unsigned int CNaddr;
 
+
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 // TODO the interops for context, device, event, platform and program
@@ -47,13 +48,19 @@ template <> struct interop<backend::ext_oneapi_cnrt, device> {
   using type = CNdev;
 };
 
-template <> struct interop<backend::ext_oneapi_cnrt, event> {
-  using type = CNnotifier;
-};
+// template <> struct interop<backend::ext_oneapi_cnrt, event> {
+//   using type = CNnotifier;
+// };
 
 template <> struct interop<backend::ext_oneapi_cnrt, queue> {
   using type = CNqueue;
 };
+
+#ifdef __SYCL_INTERNAL_API
+template <> struct interop<backend::ext_oneapi_cnrt, program> {
+  using type = CNmodule;
+};
+#endif
 
 // TODO the interops for accessor is used in the already deprecated class
 // interop_handler and can be removed after API cleanup.
@@ -117,5 +124,5 @@ template <> struct BackendReturn<backend::ext_oneapi_cnrt, queue> {
 };
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
+} // __SYCL_INLINE_NAMESPACE(cl)
