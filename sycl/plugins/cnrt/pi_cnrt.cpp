@@ -305,12 +305,6 @@ void guessLocalWorkSize(size_t *threadsPerBlock, const size_t *global_work_size,
 }
 
 // makes all future work submitted to queue wait for all work captured in event.
-pi_result enqueueEventWait(pi_queue queue, pi_event event) {
-  // for native events, the cnQueueWaitNotifier call is used.
-  // This makes all future work submitted to queue wait for all
-  // work captured in event.
-  return PI_CHECK_ERROR(cnQueueWaitNotifier(queue->get(), event->get()));
-}
 
 pi_result enqueueEventsWait(pi_queue command_queue, CNqueue queue,
                             pi_uint32 num_events_in_wait_list,
@@ -425,11 +419,12 @@ CNqueue _pi_queue::get_next_transfer_queue() {
   return transfer_queues_[transfer_queue_idx_++ % transfer_queues_.size()];
 }
 
-_pi_event::_pi_event(pi_command_type type, pi_context context, pi_queue queue)
+_pi_event::_pi_event(pi_command_type type, pi_context context, pi_queue command_queue,
+                     CNqueue queue)
     : commandType_{type}, refCount_{1}, has_ownership_{true},
       hasBeenWaitedOn_{false}, isRecorded_{false}, isStarted_{false},
       evEnd_{nullptr}, evStart_{nullptr},
-      evQueued_{nullptr}, queue_{queue}, context_{context} {
+      evQueued_{nullptr}, queue_{command_queue}, native_queue_{queue}, context_{context} {
 
   bool profilingEnabled = queue_->properties_ & PI_QUEUE_PROFILING_ENABLE;
 
@@ -570,6 +565,16 @@ pi_result _pi_event::release() {
   return PI_SUCCESS;
 }
 
+// makes all future work submitted to queue wait for all work captured in event.
+pi_result enqueueEventWait(pi_queue queue, pi_event event) {
+  // for native events, the cuStreamWaitEvent call is used.
+  // This makes all future work submitted to stream wait for all
+  // work captured in event.
+  queue->for_each_queue([e = event->get()](CNqueue q) {
+    PI_CHECK_ERROR(cnQueueWaitNotifier(q, e));
+  });
+  return PI_SUCCESS;
+}
 
 _pi_program::_pi_program(pi_context ctxt)
     : module_{nullptr}, binary_{}, binarySizeInBytes_{0}, refCount_{1},
@@ -2562,7 +2567,7 @@ pi_result cnrt_piEnqueueMemBufferWrite(pi_queue command_queue, pi_mem buffer,
 
     if (event) {
       retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
-          PI_COMMAND_TYPE_MEM_BUFFER_WRITE, command_queue));
+          PI_COMMAND_TYPE_MEM_BUFFER_WRITE, command_queue, cnQueue));
       retImplEv->start();
     }
 
@@ -2613,7 +2618,7 @@ pi_result cnrt_piEnqueueMemBufferRead(pi_queue command_queue, pi_mem buffer,
 
     if (event) {
       retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
-          PI_COMMAND_TYPE_MEM_BUFFER_READ, command_queue));
+          PI_COMMAND_TYPE_MEM_BUFFER_READ, command_queue, cnQueue));
       retImplEv->start();
     }
 
@@ -2721,20 +2726,20 @@ pi_result cnrt_piKernelSetArg(pi_kernel kernel, pi_uint32 arg_index,
   pi_result retErr = PI_SUCCESS;
   try {
 
-    int* flag = const_cast<int*>(reinterpret_cast<const int *> (arg_value));
-    if (*flag == 101) {
-      kernel->set_kernel_local_arg(arg_index, arg_size);
-    // } else if (*flag == 102) {
-    //   kernel->set_kernel_wram_arg(arg_index, arg_size);
-    } else if(arg_value) {
-      kernel->set_kernel_arg(arg_index, arg_size, arg_value);
-    }
-
-    // if (arg_value) {
-    //   kernel->set_kernel_arg(arg_index, arg_size, arg_value);
-    // } else {
+    // int* flag = const_cast<int*>(reinterpret_cast<const int *> (arg_value));
+    // if (*flag == 101) {
     //   kernel->set_kernel_local_arg(arg_index, arg_size);
+    // // } else if (*flag == 102) {
+    // //   kernel->set_kernel_wram_arg(arg_index, arg_size);
+    // } else if(arg_value) {
+    //   kernel->set_kernel_arg(arg_index, arg_size, arg_value);
     // }
+
+    if (arg_value) {
+      kernel->set_kernel_arg(arg_index, arg_size, arg_value);
+    } else {
+      kernel->set_kernel_local_arg(arg_index, arg_size);
+    }
   } catch (pi_result err) {
     retErr = err;
   }
@@ -2905,7 +2910,7 @@ pi_result cnrt_piEnqueueKernelLaunch(
 
     if (event) {
       retImplEv = std::unique_ptr<_pi_event>(
-          _pi_event::make_native(PI_COMMAND_TYPE_NDRANGE_KERNEL, command_queue));
+          _pi_event::make_native(PI_COMMAND_TYPE_NDRANGE_KERNEL, command_queue, cnQueue));
       retImplEv->start();
     }
 
@@ -3531,7 +3536,8 @@ pi_result cnrt_piEnqueueEventsWaitWithBarrier(pi_queue command_queue,
     }
 
     if (event) {
-      *event = _pi_event::make_native(PI_COMMAND_TYPE_MARKER, command_queue);
+      *event = _pi_event::make_native(PI_COMMAND_TYPE_MARKER, command_queue,
+                                      command_queue->get_next_compute_queue());
       (*event)->start();
       (*event)->record();
     }
@@ -3787,7 +3793,7 @@ pi_result cnrt_piEnqueueMemBufferReadRect(
 
     if (event) {
       retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
-          PI_COMMAND_TYPE_MEM_BUFFER_READ_RECT, command_queue));
+          PI_COMMAND_TYPE_MEM_BUFFER_READ_RECT, command_queue, cnQueue));
       retImplEv->start();
     }
 
@@ -3837,7 +3843,7 @@ pi_result cnrt_piEnqueueMemBufferWriteRect(
 
     if (event) {
       retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
-          PI_COMMAND_TYPE_MEM_BUFFER_WRITE_RECT, command_queue));
+          PI_COMMAND_TYPE_MEM_BUFFER_WRITE_RECT, command_queue, cnQueue));
       retImplEv->start();
     }
 
@@ -3886,7 +3892,7 @@ pi_result cnrt_piEnqueueMemBufferCopy(pi_queue command_queue, pi_mem src_buffer,
 
     if (event) {
       retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
-          PI_COMMAND_TYPE_MEM_BUFFER_COPY, command_queue));
+          PI_COMMAND_TYPE_MEM_BUFFER_COPY, command_queue, cnQueue));
       result = retImplEv->start();
     }
 
@@ -3933,7 +3939,7 @@ pi_result cnrt_piEnqueueMemBufferCopyRect(
 
     if (event) {
       retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
-          PI_COMMAND_TYPE_MEM_BUFFER_COPY_RECT, command_queue));
+          PI_COMMAND_TYPE_MEM_BUFFER_COPY_RECT, command_queue, cnQueue));
       retImplEv->start();
     }
 
@@ -3988,7 +3994,7 @@ pi_result cnrt_piEnqueueMemBufferFill(pi_queue command_queue, pi_mem buffer,
 
     if (event) {
       retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
-          PI_COMMAND_TYPE_MEM_BUFFER_FILL, command_queue));
+          PI_COMMAND_TYPE_MEM_BUFFER_FILL, command_queue, cnQueue));
       result = retImplEv->start();
     }
 
@@ -4174,7 +4180,7 @@ pi_result cnrt_piEnqueueMemBufferMap(pi_queue command_queue, pi_mem buffer,
     if (event) {
       try {
         *event = _pi_event::make_native(
-            PI_COMMAND_TYPE_MEM_BUFFER_MAP, command_queue);
+            PI_COMMAND_TYPE_MEM_BUFFER_MAP, command_queue, command_queue->get_next_transfer_queue());
         (*event)->start();
         (*event)->record();
       } catch (pi_result error) {
@@ -4228,7 +4234,7 @@ pi_result cnrt_piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
     if (event) {
       try {
         *event = _pi_event::make_native(
-            PI_COMMAND_TYPE_MEM_BUFFER_UNMAP, command_queue);
+            PI_COMMAND_TYPE_MEM_BUFFER_UNMAP, command_queue, command_queue->get_next_transfer_queue());
         (*event)->start();
         (*event)->record();
       } catch (pi_result error) {
@@ -4324,18 +4330,16 @@ pi_result cnrt_piextUSMEnqueueMemset(pi_queue queue, void *ptr, pi_int32 value,
 
   try {
     ScopedContext active(queue->get_context());
-    pi_uint32 queue_token;
-    // _pi_queue_guard guard;
-    CNqueue cnQueue = queue->get();
-    result = enqueueEventsWait(queue, cnQueue, num_events_in_waitlist,
+    CNqueue q = queue->get_next_compute_queue();
+    result = enqueueEventsWait(queue, q, num_events_in_waitlist,
                                events_waitlist);
     if (event) {
       event_ptr = std::unique_ptr<_pi_event>(_pi_event::make_native(
-          PI_COMMAND_TYPE_MEM_BUFFER_FILL, queue));
+          PI_COMMAND_TYPE_MEM_BUFFER_FILL, queue, q));
       event_ptr->start();
     }
     result = PI_CHECK_ERROR(cnMemsetD8Async(
-        (CNaddr)ptr, (unsigned char)value & 0xFF, count, cnQueue));
+        (CNaddr)ptr, (unsigned char)value & 0xFF, count, q));
     if (event) {
       result = event_ptr->record();
       *event = event_ptr.release();
@@ -4361,12 +4365,12 @@ pi_result cnrt_piextUSMEnqueueMemcpy(pi_queue queue, pi_bool blocking,
 
   try {
     ScopedContext active(queue->get_context());
-    CNqueue cnQueue = queue->get();
+    CNqueue cnQueue = queue->get_next_transfer_queue();
     result = enqueueEventsWait(queue, cnQueue, num_events_in_waitlist,
                                events_waitlist);
     if (event) {
       event_ptr = std::unique_ptr<_pi_event>(_pi_event::make_native(
-          PI_COMMAND_TYPE_MEM_BUFFER_COPY, queue));
+          PI_COMMAND_TYPE_MEM_BUFFER_COPY, queue, cnQueue));
       event_ptr->start();
     }
     result = PI_CHECK_ERROR(cnMemcpyAsync(

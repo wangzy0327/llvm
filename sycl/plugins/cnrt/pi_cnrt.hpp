@@ -36,6 +36,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <iostream>
 
 extern "C" {
 
@@ -593,8 +594,8 @@ public:
 
   // construct a native CNRT. This maps closely to the underlying CNRT event.
   static pi_event
-  make_native(pi_command_type type, pi_queue queue) {
-    return new _pi_event(type, queue->get_context(), queue);
+  make_native(pi_command_type type, pi_queue queue, CNqueue q) {
+    return new _pi_event(type, queue->get_context(), queue, q);
   }
 
   static pi_event make_with_native(pi_context context, CNnotifier eventNative) {
@@ -608,7 +609,8 @@ public:
 private:
   // This constructor is private to force programmers to use the make_native /
   // make_user static members in order to create a pi_event for CNRT.
-  _pi_event(pi_command_type type, pi_context context, pi_queue queue);
+  _pi_event(pi_command_type type, pi_context context, pi_queue command_queue,
+            CNqueue queue);
 
   // This constructor is private to force programmers to use the
   // make_with_native for event introp
@@ -872,15 +874,17 @@ struct _pi_kernel {
 
   void create_kernel_params() {
     kernel_params_ = (CNaddr *)malloc(get_num_args() * sizeof(CNaddr));
+    std::cout<<"cnrt create kernel params"<<std::endl;
     auto argIndices = get_arg_indices();
     const pi_uint32 MemStep = 4;
     for (pi_uint32 i = 0; i < get_num_args(); i++) {
+      // kernel_params_[i] = *(CNaddr *)argIndices[i];
       if (i % MemStep == 0) {
         kernel_params_[i] = *(CNaddr *)(argIndices[i]);
       } else {
         kernel_params_[i] = *(int *)(argIndices[i]);
       }
-      //std::cout<<"arg: "<<kernel_params_[i]<<std::endl;
+      std::cout<<"create_kernel_params() arg: "<<kernel_params_[i]<<std::endl;
     }
   }
 

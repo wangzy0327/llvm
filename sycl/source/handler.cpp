@@ -252,6 +252,7 @@ event handler::finalize() {
             MNDRDesc, (NewEvent) ? NewEvent->getHostProfilingInfo() : nullptr);
         Result = CL_SUCCESS;
       } else {
+        std::cout<<"handler finalize() -> EnqueueKernel = enqueueImpKernel() "<<std::endl;
         if (MQueue->getPlugin().getBackend() ==
             backend::ext_intel_esimd_emulator) {
           MQueue->getPlugin().call<detail::PiApiKind::piEnqueueKernelLaunch>(
@@ -546,21 +547,25 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
       for (int I = 0; I < Dims; ++I)
         SizeInBytes *= Size[I];
 
-      if (AccTarget == access::target::local) {
-        int *p = new int(101);
-        MArgs.emplace_back(kernel_param_kind_t::kind_std_layout, (void*)p,
+      detail::queue_impl* queue_impl = MQueue.get();
+      // std::cout<<"kernel name is "<<getKernelName()<<std::endl;
+      if(queue_impl != nullptr){
+        std::cout<<"queue_impl not empty"<<std::endl;
+        const detail::plugin& Plugin = queue_impl->getPlugin();
+        if(Plugin.getBackend() == backend::ext_oneapi_cnrt)
+          std::cout<<"handler ext_oneapi_cnrt backend MArgs set"<<std::endl;
+      }
+      // Some backends do not accept zero-sized local memory arguments, so we
+      // make it a minimum allocation of 1 byte.
+      SizeInBytes = std::max(SizeInBytes, 1);
+      MArgs.emplace_back(kernel_param_kind_t::kind_std_layout, nullptr,
                          SizeInBytes, Index + IndexShift);
-      } 
-      // else if (AccTarget == access::target::wram) {
-      //   int *p = new int(102);
+      // if(Plugin.getBackend() == backend::ext_oneapi_cnrt){
+      //   std::cout<<"handler ext_oneapi_cnrt backend MArgs set"<<std::endl;
+      //   int *p = new int(101);
       //   MArgs.emplace_back(kernel_param_kind_t::kind_std_layout, (void*)p,
       //                    SizeInBytes, Index + IndexShift);
       // }
-      // Some backends do not accept zero-sized local memory arguments, so we
-      // make it a minimum allocation of 1 byte.
-      // SizeInBytes = std::max(SizeInBytes, 1);
-      // MArgs.emplace_back(kernel_param_kind_t::kind_std_layout, nullptr,
-      //                    SizeInBytes, Index + IndexShift);
       if (!IsKernelCreatedFromSource) {
         ++IndexShift;
         const size_t SizeAccField = Dims * sizeof(Size[0]);

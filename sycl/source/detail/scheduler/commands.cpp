@@ -1991,6 +1991,7 @@ static pi_result SetKernelParamsAndLaunch(
              "The function should not be nullptr as we followed the path for "
              "which accessors are used");
       RT::PiMem MemArg = (RT::PiMem)getMemAllocationFunc(Req);
+      std::cout<<"SetKernelParamsAndLaunch kind_accessor piextKernelSetArgMemObj"<<std::endl;
       if (Plugin.getBackend() == backend::opencl) {
         Plugin.call<PiApiKind::piKernelSetArg>(Kernel, NextTrueIndex,
                                                sizeof(RT::PiMem), &MemArg);
@@ -2001,6 +2002,8 @@ static pi_result SetKernelParamsAndLaunch(
       break;
     }
     case kernel_param_kind_t::kind_std_layout: {
+      std::cout<<"SetKernelParamsAndLaunch kind_std_layout piKernelSetArg"<<std::endl;
+      std::cout<<"Kernel Args size is : "<<Arg.MSize<<std::endl;
       Plugin.call<PiApiKind::piKernelSetArg>(Kernel, NextTrueIndex, Arg.MSize,
                                              Arg.MPtr);
       break;
@@ -2066,7 +2069,7 @@ static pi_result SetKernelParamsAndLaunch(
     if (EnforcedLocalSize)
       LocalSize = RequiredWGSize;
   }
-
+  std::cout<<"SetKernelParamsAndLaunch -> Plugin.call_nocheck<PiApiKind::piEnqueueKernelLaunch>()"<<std::endl;
   pi_result Error = Plugin.call_nocheck<PiApiKind::piEnqueueKernelLaunch>(
       Queue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
       &NDRDesc.GlobalSize[0], LocalSize, RawEvents.size(),
@@ -2172,11 +2175,13 @@ cl_int enqueueImpKernel(
   }
   if (KernelMutex != nullptr) {
     // For cacheable kernels, we use per-kernel mutex
+    std::cout<<"commands.cpp cacheable enqueueImpKernel -> SetKernelParamsAndLaunch()"<<std::endl;
     std::lock_guard<std::mutex> Lock(*KernelMutex);
     Error = SetKernelParamsAndLaunch(Queue, Args, DeviceImageImpl, Kernel,
                                      NDRDesc, RawEvents, OutEvent,
                                      EliminatedArgMask, getMemAllocationFunc);
   } else {
+    std::cout<<"commands.cpp enqueueImpKernel -> SetKernelParamsAndLaunch()"<<std::endl;
     Error = SetKernelParamsAndLaunch(Queue, Args, DeviceImageImpl, Kernel,
                                      NDRDesc, RawEvents, OutEvent,
                                      EliminatedArgMask, getMemAllocationFunc);
