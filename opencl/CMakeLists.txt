@@ -5,9 +5,11 @@ include(FetchContent)
 # Repo URLs
 
 set(OCL_HEADERS_REPO
-  "https://github.com/KhronosGroup/OpenCL-Headers.git")
+  "ssh://git@gitlab.gxnzx12729.ict:2222/wangziyang/opencl-headers.git")
+  # "https://github.com/KhronosGroup/OpenCL-Headers.git")
 set(OCL_LOADER_REPO
-  "https://github.com/KhronosGroup/OpenCL-ICD-Loader.git")
+  "ssh://git@gitlab.gxnzx12729.ict:2222/wangziyang/opencl-icd-loader.git")
+  # "https://github.com/KhronosGroup/OpenCL-ICD-Loader.git")
 
 # Repo tags/hashes
 
@@ -15,20 +17,20 @@ set(OCL_HEADERS_TAG 23710f1b99186065c1768fc3098ba681adc0f253)
 set(OCL_LOADER_TAG 5f8249691ec8c25775789498951f8e9eb62c201d)
 
 # OpenCL Headers
-#if(NOT OpenCL_HEADERS)
-#  message(STATUS "Will fetch OpenCL headers from ${OCL_HEADERS_REPO}")
+if(NOT OpenCL_HEADERS)
+ message(STATUS "Will fetch OpenCL headers from ${OCL_HEADERS_REPO}")
 
-#  FetchContent_Declare(ocl-headers
-#    GIT_REPOSITORY    ${OCL_HEADERS_REPO}
-#    GIT_TAG           ${OCL_HEADERS_TAG}
-#  )
-#else()
+ FetchContent_Declare(ocl-headers
+   GIT_REPOSITORY    ${OCL_HEADERS_REPO}
+   GIT_TAG           ${OCL_HEADERS_TAG}
+ )
+else()
   message(STATUS "OpenCL headers are added manually ${OpenCL_HEADERS}")
 
   FetchContent_Declare(ocl-headers
     URL               ${OpenCL_HEADERS}
   )
-#endif()
+endif()
 
 FetchContent_MakeAvailable(ocl-headers)
 FetchContent_GetProperties(ocl-headers)

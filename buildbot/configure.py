@@ -139,10 +139,10 @@ def do_configure(args):
             "-DSYCL_LIBCXX_INCLUDE_PATH={}".format(args.libcxx_include),
             "-DSYCL_LIBCXX_LIBRARY_PATH={}".format(args.libcxx_library)])
 
-    cmake_cmd.extend(["-DLLVMGenXIntrinsics_SOURCE_DIR={}".format(os.path.join(abs_src_dir, "_deps/vc-intrinsics-src")),
-			"-Docl-headers_SOURCE_DIR={}".format(os.path.join(abs_src_dir, "_deps/ocl-headers-src")),
-			"-DOpenCL_LIBRARY_SRC={}".format(os.path.join(abs_src_dir, "_deps/ocl-icd-src")),
-			"-DOpenCL_HEADERS={}".format(os.path.join(abs_src_dir, "_deps/ocl-headers-src")),]) 
+    # cmake_cmd.extend(["-DLLVMGenXIntrinsics_SOURCE_DIR={}".format(os.path.join(abs_src_dir, "_deps/vc-intrinsics-src")),
+	# 		"-Docl-headers_SOURCE_DIR={}".format(os.path.join(abs_src_dir, "_deps/ocl-headers-src")),
+	# 		"-DOpenCL_LIBRARY_SRC={}".format(os.path.join(abs_src_dir, "_deps/ocl-icd-src")),
+	# 		"-DOpenCL_HEADERS={}".format(os.path.join(abs_src_dir, "_deps/ocl-headers-src")),]) 
     print("[Cmake Command]: {}".format(" ".join(cmake_cmd)))
 
     try:

@@ -18,7 +18,8 @@ if (NOT TARGET LLVMGenXIntrinsics)
 
     include(FetchContent)
     FetchContent_Declare(vc-intrinsics
-      GIT_REPOSITORY https://github.com/intel/vc-intrinsics.git
+      # GIT_REPOSITORY https://github.com/intel/vc-intrinsics.git
+      GIT_REPOSITORY ssh://git@gitlab.gxnzx12729.ict:2222/wangziyang/vc-intrinsics.git
       GIT_TAG        ${LLVMGenXIntrinsics_GIT_TAG}
     )
     FetchContent_MakeAvailable(vc-intrinsics)
